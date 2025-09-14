@@ -1,7 +1,7 @@
 /**
  * @file Script principal para el Dashboard de Vendedores de Uni-Eats.
  * @description Gestiona la renderización, lógica y comunicación con el API para el panel de control del vendedor.
- * @version 6.0.0 (Header Condicional y Lógica de UI Final)
+ * @version 8.0 (Final - Ciclo Completo)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
             csrfHeader: document.querySelector("meta[name='_csrf_header']")?.getAttribute("content"),
             apiEndpoints: {
                 getDashboard: '/api/vendedor/dashboard',
+                getPedidos: '/api/vendedor/pedidos', // Endpoint para obtener pedidos
                 createStore: '/api/vendedor/tienda/crear',
                 updateStore: '/api/vendedor/tienda/actualizar',
                 createProduct: '/api/vendedor/productos/crear',
@@ -157,13 +158,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 await App.api.request(App.config.apiEndpoints.createStore, { method: 'POST', body: formData }, submitButton);
                                 App.ui.showToast('¡Tienda enviada para aprobación!');
                                 setTimeout(() => window.location.reload(), 1500);
-                            } catch (error) { /* Error manejado */ }
+                            } catch (error) { /* Error manejado en App.api */ }
                         });
                     }
                 }
             },
             
-            // --- ESTRUCTURA PRINCIPAL SIMPLIFICADA ---
             Dashboard: {
                 render(tienda) {
                     return `
@@ -194,11 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.querySelectorAll('.nav-link').forEach(link => {
                         link.addEventListener('click', (e) => { e.preventDefault(); App.ui.switchView(link.dataset.target); });
                     });
-                    App.ui.switchView('productos');
+                    App.ui.switchView('pedidos'); // Iniciar en la vista de pedidos
                 }
             },
             
-            // --- VISTA DE PEDIDOS AHORA INCLUYE EL HEADER ---
             Pedidos: {
                 render(data) {
                     const tienda = App.state.tienda;
@@ -230,10 +229,67 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="store-status-toggle" ${estaAbierta ? 'checked' : ''} class="sr-only peer"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div></label>
                                 </div>
                             </header>
-                            <div class="p-4 pt-0"><div class="bg-white p-6 rounded-xl shadow-md text-center"><i class="fas fa-receipt text-4xl text-indigo-400 mb-3"></i><h2 class="text-xl font-bold">Pedidos Activos</h2><p class="mt-2 text-slate-500">Los nuevos pedidos aparecerán aquí.</p></div></div>
+                            
+                            <div id="pedidos-container" class="p-4 pt-0 space-y-3">
+                                <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                                    <i class="fas fa-spinner fa-spin text-2xl text-indigo-400 mb-3"></i>
+                                    <p class="mt-2 text-slate-500">Cargando pedidos...</p>
+                                </div>
+                            </div>
                         </div>`;
                 },
-                init(data) { /* Lógica futura */ }
+                
+                async init(data) {
+                    const container = document.getElementById('pedidos-container');
+                    if (!container) return;
+
+                    try {
+                        const response = await fetch(App.config.apiEndpoints.getPedidos);
+                        if (!response.ok) throw new Error('No se pudieron cargar los pedidos.');
+                        
+                        const pedidos = await response.json();
+
+                        if (pedidos.length === 0) {
+                            container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center"><i class="fas fa-receipt text-4xl text-indigo-400 mb-3"></i><h2 class="text-xl font-bold">Pedidos Activos</h2><p class="mt-2 text-slate-500">Aún no tienes pedidos nuevos.</p></div>`;
+                            return;
+                        }
+
+                        const formatPrice = (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
+                        
+                        container.innerHTML = pedidos.map(pedido => `
+                            <div class="bg-white p-4 rounded-xl shadow-md space-y-2">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <p class="font-bold text-slate-800">Pedido #${pedido.id} - <span class="font-normal">${pedido.nombreComprador}</span></p>
+                                        <p class="text-xs text-slate-500">${new Date(pedido.fechaCreacion).toLocaleString()}</p>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">${pedido.estado}</span>
+                                </div>
+                                <div class="border-t border-b py-2 space-y-1">
+                                    ${pedido.detalles.map(d => `
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-slate-600">${d.cantidad}x ${d.nombreProducto}</span>
+                                            <span class="text-slate-500">${formatPrice(d.precioUnitario * d.cantidad)}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <p class="font-bold text-lg text-slate-800">Total: ${formatPrice(pedido.total)}</p>
+                                    <details class="relative">
+                                        <summary class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer select-none">Acciones</summary>
+                                        <div class="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-xl z-10 border">
+                                            <a href="#" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50 font-semibold">Aceptar</a>
+                                            <a href="#" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-50 font-semibold">Rechazar</a>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+                        `).join('');
+
+                    } catch (error) {
+                        container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center text-red-500"><p>${error.message}</p></div>`;
+                    }
+                }
             },
             
             Productos: {
@@ -289,27 +345,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     return `<div id="view-perfil" class="main-view p-4"><header class="mb-4"><h1 class="text-2xl font-bold text-slate-800">Mi Tienda</h1></header><div class="space-y-4"><div class="bg-white rounded-xl shadow-md"><nav class="flex flex-col"><a href="#" data-modal-open="edit-store-modal" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-store w-6 text-center text-indigo-500"></i><div><p class="font-semibold">Perfil de la Tienda</p><p class="text-sm text-slate-500">Edita nombre, logo y descripción</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a><a href="#" data-modal-open="schedule-modal" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-clock w-6 text-center text-blue-500"></i><div><p class="font-semibold">Horarios de Atención</p><p class="text-sm text-slate-500">Define cuándo recibes pedidos</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a><a href="#" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-tags w-6 text-center text-amber-500"></i><div><p class="font-semibold">Promociones</p><p class="text-sm text-slate-500">Crea ofertas y paquetes</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a></nav></div><form id="logout-form" action="/logout" method="post"><input type="hidden" name="_csrf" value="${App.config.csrfToken}" /><button type="submit" class="w-full bg-white hover:bg-red-50 text-red-600 font-semibold py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-3"><i class="fas fa-sign-out-alt"></i>Cerrar Sesión</button></form></div></div>`;
                 },
                 init(data) {
-                     App.ui.initModal('edit-store-modal', () => {
-                         document.getElementById('edit-nombre-tienda').value = data.tienda.nombre;
-                         document.getElementById('edit-descripcion-tienda').value = data.tienda.descripcion;
-                         document.getElementById('edit-logo-preview').src = data.tienda.logoUrl || 'https://via.placeholder.com/150';
-                     });
-                     const editForm = document.getElementById('edit-store-form');
-                     if (editForm) {
-                         editForm.addEventListener('submit', async (e) => {
-                             e.preventDefault();
-                             const formData = new FormData(editForm);
-                             const submitButton = editForm.querySelector('button[type="submit"]');
-                             try {
-                                 await App.api.request(App.config.apiEndpoints.updateStore, { method: 'POST', body: formData }, submitButton);
-                                 App.ui.showToast('¡Perfil actualizado con éxito!');
-                                 setTimeout(() => window.location.reload(), 1500);
-                             } catch (error) { /* Error manejado */ }
-                         });
-                     }
-                     App.ui.initModal('schedule-modal', () => {
-                         this.ScheduleManager.init(data.horarios);
-                     });
+                      App.ui.initModal('edit-store-modal', () => {
+                          document.getElementById('edit-nombre-tienda').value = data.tienda.nombre;
+                          document.getElementById('edit-descripcion-tienda').value = data.tienda.descripcion;
+                          document.getElementById('edit-logo-preview').src = data.tienda.logoUrl || 'https://via.placeholder.com/150';
+                      });
+                      const editForm = document.getElementById('edit-store-form');
+                      if (editForm) {
+                          editForm.addEventListener('submit', async (e) => {
+                              e.preventDefault();
+                              const formData = new FormData(editForm);
+                              const submitButton = editForm.querySelector('button[type="submit"]');
+                              try {
+                                  await App.api.request(App.config.apiEndpoints.updateStore, { method: 'POST', body: formData }, submitButton);
+                                  App.ui.showToast('¡Perfil actualizado con éxito!');
+                                  setTimeout(() => window.location.reload(), 1500);
+                              } catch (error) { /* Error manejado */ }
+                          });
+                      }
+                      App.ui.initModal('schedule-modal', () => {
+                          this.ScheduleManager.init(data.horarios);
+                      });
                 },
                 ScheduleManager: {
                     init(horarios) {

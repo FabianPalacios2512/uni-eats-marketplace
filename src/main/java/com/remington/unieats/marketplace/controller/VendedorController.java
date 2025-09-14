@@ -1,10 +1,6 @@
 package com.remington.unieats.marketplace.controller;
 
-import com.remington.unieats.marketplace.dto.DashboardVendedorDTO;
-import com.remington.unieats.marketplace.dto.HorarioUpdateDTO;
-import com.remington.unieats.marketplace.dto.ProductoDTO;
-import com.remington.unieats.marketplace.dto.TiendaCreacionDTO;
-import com.remington.unieats.marketplace.dto.TiendaUpdateDTO;
+import com.remington.unieats.marketplace.dto.*;
 import com.remington.unieats.marketplace.model.entity.Horario;
 import com.remington.unieats.marketplace.model.entity.Producto;
 import com.remington.unieats.marketplace.model.entity.Tienda;
@@ -19,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,6 +47,20 @@ public class VendedorController {
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+    }
+
+    @GetMapping("/pedidos")
+    public ResponseEntity<List<PedidoVendedorDTO>> obtenerPedidos(Authentication authentication) {
+        String correo = authentication.getName();
+        Usuario vendedor = usuarioRepository.findByCorreo(correo)
+                .orElseThrow(() -> new IllegalStateException("Vendedor no encontrado."));
+        
+        return vendedorService.findTiendaByVendedor(vendedor)
+                .map(tienda -> {
+                    List<PedidoVendedorDTO> pedidos = vendedorService.getPedidosDeLaTienda(tienda);
+                    return ResponseEntity.ok(pedidos);
+                })
+                .orElse(ResponseEntity.ok(Collections.emptyList()));
     }
 
     @PostMapping("/tienda/crear")
@@ -89,7 +100,7 @@ public class VendedorController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-    
+
     @PostMapping("/horarios/actualizar")
     public ResponseEntity<?> procesarUpdateHorarios(@RequestBody List<HorarioUpdateDTO> horariosDTO, Authentication authentication) {
         try {

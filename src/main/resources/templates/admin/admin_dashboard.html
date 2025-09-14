@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title>Centro de Mando | Uni-Eats</title>
+    <!-- Zoom inicial al 80% para móviles -->
+    <meta name="viewport" content="width=device-width, initial-scale=0.8">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .main-nav-link.active { color: #4f46e5; background-color: #eef2ff; }
+        .main-nav-link.active .nav-icon { transform: scale(1.1); color: #4f46e5; }
+        .context-nav-link.active { background-color: #eef2ff; color: #4338ca; font-weight: 600; }
+        .main-view { display: none; }
+        .main-view.active { display: block; }
+        .animate-enter { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        /* Oculta el texto en la barra lateral colapsada (vista tablet) */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            #main-nav .nav-text { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+
+    <div class="md:flex h-screen w-full">
+
+        <!-- ====================================================================== -->
+        <!-- == SECCIÓN #1: NAVEGACIÓN PRINCIPAL                                 == -->
+        <!-- ====================================================================== -->
+        <nav id="main-nav" class="fixed bottom-0 md:relative w-full md:w-20 lg:w-64 bg-white border-t md:border-t-0 md:border-r border-slate-200 flex justify-around md:flex-col md:justify-start md:py-8 z-40 transition-all duration-300">
+            <div class="hidden lg:flex items-center space-x-3 px-6 mb-10">
+                <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-utensils text-white text-lg"></i></div>
+                <span class="font-bold text-xl bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Uni-Eats</span>
+            </div>
+            <a href="#" class="main-nav-link flex-1 md:flex-none flex flex-col items-center justify-center p-2 md:flex-row md:justify-start md:px-6 md:py-4 my-1 text-slate-500 hover:bg-slate-100 rounded-lg mx-1 transition-all duration-200" data-target="dashboard">
+                <i class="fas fa-chart-pie nav-icon text-xl text-slate-400 lg:mr-4 transition-transform"></i><span class="text-xs lg:text-base font-medium nav-text">Dashboard</span>
+            </a>
+            <a href="#" class="main-nav-link flex-1 md:flex-none flex flex-col items-center justify-center p-2 md:flex-row md:justify-start md:px-6 md:py-4 my-1 text-slate-500 hover:bg-slate-100 rounded-lg mx-1 transition-all duration-200" data-target="gestion">
+                <i class="fas fa-cogs nav-icon text-xl text-slate-400 lg:mr-4 transition-transform"></i><span class="text-xs lg:text-base font-medium nav-text">Gestión</span>
+            </a>
+            <a href="#" class="main-nav-link flex-1 md:flex-none flex flex-col items-center justify-center p-2 md:flex-row md:justify-start md:px-6 md:py-4 my-1 text-slate-500 hover:bg-slate-100 rounded-lg mx-1 transition-all duration-200" data-target="reportes">
+                <i class="fas fa-file-alt nav-icon text-xl text-slate-400 lg:mr-4 transition-transform"></i><span class="text-xs lg:text-base font-medium nav-text">Reportes</span>
+            </a>
+            <div class="hidden md:block md:mt-auto">
+                 <div class="relative px-6">
+                    <form th:action="@{/logout}" method="post"><button type="submit" class="w-full flex items-center space-x-3 p-2 rounded-xl hover:bg-red-50 text-red-500 transition-all duration-200"><i class="fas fa-sign-out-alt text-lg lg:mr-4"></i><span class="hidden lg:inline text-base font-medium">Salir</span></button></form>
+                </div>
+            </div>
+        </nav>
+
+        <!-- ====================================================================== -->
+        <!-- == SECCIÓN #2: CONTENIDO PRINCIPAL                                  == -->
+        <!-- ====================================================================== -->
+        <div class="flex-1 flex flex-col w-full">
+            <header class="bg-white/80 backdrop-blur-lg border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-30">
+    <div>
+        <nav class="text-sm font-medium text-slate-500 hidden sm:block">
+            <ol class="list-none p-0 inline-flex">
+                <li class="flex items-center">
+                    <a href="#" class="hover:text-indigo-600">Dashboard</a>
+                    <i class="fas fa-chevron-right mx-2 text-xs"></i>
+                </li>
+                <li class="flex items-center">
+                    <span id="breadcrumb-active" class="text-slate-700 font-semibold">Resumen</span>
+                </li>
+            </ol>
+        </nav>
+        <h1 id="view-header-title" class="text-xl md:text-2xl font-bold text-slate-800 -mt-1">Dashboard</h1>
+    </div>
+
+    <div class="flex items-center space-x-2 sm:space-x-4">
+        <button class="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors relative">
+            <i class="fas fa-bell text-lg"></i>
+            <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+
+        <div class="relative">
+            <button id="user-menu-button" class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner overflow-hidden">
+                
+                <span th:text="${#authentication.principal.username.substring(0,1).toUpperCase()}">A</span>
+
+            </button>
+
+            <div id="user-menu-panel" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border z-40 origin-top-right">
+                <div class="p-4 border-b">
+                    <p class="font-bold text-slate-800" sec:authentication="name">Admin</p>
+                    <p class="text-sm text-slate-500" sec:authentication="principal.username">admin@unieats.com</p>
+                </div>
+                <div class="py-2">
+                    <a href="#" class="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"><i class="fas fa-user-circle w-6 mr-2 text-slate-400"></i>Mi Perfil</a>
+                    <a href="#" class="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"><i class="fas fa-cog w-6 mr-2 text-slate-400"></i>Configuración</a>
+                </div>
+                <div class="p-2">
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg">
+                            <i class="fas fa-sign-out-alt w-6 mr-2"></i>Cerrar Sesión
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+            <nav id="contextual-nav" class="bg-white border-b border-slate-200"></nav>
+            <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8">
+                
+                <!-- ====================================================================== -->
+                <!-- == VISTA #A: DASHBOARD (PÁGINA DE BIENVENIDA)                       == -->
+                <!-- ====================================================================== -->
+                <div id="view-dashboard" class="main-view animate-enter space-y-6">
+
+    <div>
+        <h1 class="text-2xl md:text-3xl font-bold text-slate-800">¡Hola de nuevo, <span sec:authentication="name">Admin</span>! 👋</h1>
+        <p id="dashboard-date" class="text-slate-500 mt-1">Aquí tienes el resumen de la plataforma.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <div class="lg:col-span-2 space-y-6">
+
+            <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-2xl shadow-2xl flex items-center justify-between text-white">
+                <div>
+                    <p class="text-indigo-200 font-medium">Usuarios Totales en la Plataforma</p>
+                    <p class="text-4xl lg:text-5xl font-bold mt-2" th:text="${stats.totalUsuarios}">1</p>
+                </div>
+                <i class="fas fa-users text-6xl text-indigo-300/50"></i>
+            </div>
+
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-lg">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">Volumen de Pedidos (Últimos 15 días)</h3>
+                <div id="orders-chart" class="w-full h-64 md:h-80"></div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-1 space-y-6">
+
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-lg space-y-4">
+                <h3 class="text-lg font-bold text-slate-800 border-b pb-3 mb-3">Desglose de Comunidad</h3>
+                <div class="flex items-center">
+                    <div class="bg-green-100 text-green-600 rounded-lg p-3 mr-4"><i class="fas fa-user-graduate fa-lg"></i></div>
+                    <div class="flex-grow"><p class="font-medium text-slate-700">Estudiantes</p></div>
+                    <p class="text-xl font-bold text-slate-800" th:text="${stats.totalEstudiantes}">0</p>
+                </div>
+                <div class="flex items-center">
+                    <div class="bg-blue-100 text-blue-600 rounded-lg p-3 mr-4"><i class="fas fa-user-tie fa-lg"></i></div>
+                    <div class="flex-grow"><p class="font-medium text-slate-700">Vendedores</p></div>
+                    <p class="text-xl font-bold text-slate-800" th:text="${stats.totalVendedores}">0</p>
+                </div>
+                <div class="flex items-center">
+                    <div class="bg-amber-100 text-amber-600 rounded-lg p-3 mr-4"><i class="fas fa-store fa-lg"></i></div>
+                    <div class="flex-grow"><p class="font-medium text-slate-700">Tiendas</p></div>
+                    <p class="text-xl font-bold text-slate-800" th:text="${stats.totalTiendas}">0</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-lg">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">Atajos Rápidos</h3>
+                <div class="space-y-2">
+                    <a href="#" class="open-modal-from-dashboard w-full flex items-center p-3 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors">
+                        <i class="fas fa-plus-circle w-6 mr-3 text-indigo-500"></i>
+                        <span class="font-semibold text-slate-700">Crear Nuevo Usuario</span>
+                    </a>
+                    <a href="#" class="switch-view-from-dashboard w-full flex items-center p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors" data-target="gestion" data-view="view-gestion-tiendas" data-title="Gestión de Tiendas">
+                        <i class="fas fa-store w-6 mr-3 text-slate-400"></i>
+                        <span class="font-semibold text-slate-700">Gestionar Tiendas</span>
+                    </a>
+                     <a href="#" class="switch-view-from-dashboard w-full flex items-center p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors" data-target="reportes">
+                        <i class="fas fa-file-alt w-6 mr-3 text-slate-400"></i>
+                        <span class="font-semibold text-slate-700">Ver Reportes</span>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+                <!-- ====================================================================== -->
+                <!-- == VISTA #B: GESTIÓN DE USUARIOS                                    == -->
+                <!-- ====================================================================== -->
+                
+                    <div id="view-gestion-usuarios" class="main-view hidden animate-enter">
+    
+    <div class="bg-white p-3 rounded-xl shadow-lg flex items-center gap-3 sticky top-0 z-20">
+        <div class="relative flex-grow">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="user-search-input" placeholder="Buscar usuario..." class="w-full bg-slate-100 pl-9 pr-3 py-2 border border-transparent rounded-lg focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+        </div>
+        <div class="flex-shrink-0 flex space-x-1 bg-slate-100 p-1 rounded-lg">
+            <button class="user-filter-btn active px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-indigo-600 shadow" data-rol="TODOS">Todos</button>
+            <button class="user-filter-btn px-2.5 py-1 text-xs font-semibold text-slate-500" data-rol="ESTUDIANTE">Est.</button>
+            <button class="user-filter-btn px-2.5 py-1 text-xs font-semibold text-slate-500" data-rol="VENDEDOR">Vend.</button>
+        </div>
+    </div>
+
+    <div id="user-list" class="mt-4 space-y-3">
+        <div th:each="usuario : ${usuarios}" 
+             class="user-card bg-white p-4 rounded-xl shadow-lg flex items-center gap-4 transition-transform active:scale-[0.98]"
+             th:data-id="${usuario.id}"
+             th:data-nombre="${usuario.nombre + ' ' + usuario.apellido}"
+             th:data-correo="${usuario.correo.toLowerCase()}"
+             th:data-cedula="${usuario.cedula}"
+             th:data-roles="${#strings.listJoin(usuario.roles.![nombre], ',')}"
+             th:data-activo="${usuario.isActivo()}">
+            
+            <div class="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0" th:text="${#strings.substring(usuario.nombre, 0, 1).toUpperCase()}">
+                A
+            </div>
+
+            <div class="flex-grow overflow-hidden">
+                <p class="font-bold text-slate-800 truncate" th:text="${usuario.nombre + ' ' + usuario.apellido}">Nombre Apellido</p>
+                <p class="text-sm text-slate-500 truncate" th:text="${usuario.correo}">correo@ejemplo.com</p>
+                <div class="flex items-center gap-2 mt-1.5">
+                    <span th:each="rol : ${usuario.roles}" class="px-2 py-0.5 text-xs font-semibold rounded-full" th:classappend="${rol.nombre == 'ADMIN_PLATAFORMA'} ? 'bg-amber-100 text-amber-800' : (${rol.nombre == 'VENDEDOR'} ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800')" th:text="${#strings.capitalize(rol.nombre.toLowerCase().replace('_PLATAFORMA',''))}">Rol</span>
+                </div>
+            </div>
+
+            <div class="flex-shrink-0 w-2.5 h-2.5 rounded-full" th:classappend="${usuario.isActivo() ? 'bg-green-500' : 'bg-red-500'}"></div>
+        </div>
+    </div>
+
+    <button id="open-modal-btn" class="fixed bottom-20 md:bottom-8 right-4 md:right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-2xl flex items-center justify-center z-30 transition-transform hover:scale-110">
+        <i class="fas fa-plus text-xl"></i>
+    </button>
+
+</div>
+
+
+<div id="user-actions-sheet" class="hidden fixed inset-0 z-50 flex flex-col justify-end">
+    <div id="sheet-scrim" class="absolute inset-0 bg-black/50"></div>
+    
+    <div id="sheet-content" class="bg-slate-100 rounded-t-2xl p-4 z-10 translate-y-full transition-transform duration-300">
+        <div class="flex items-center gap-3 pb-3 border-b border-slate-200 mb-3">
+             <div id="sheet-user-avatar" class="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"></div>
+             <div>
+                <p id="sheet-user-name" class="font-bold text-slate-800"></p>
+                <p id="sheet-user-email" class="text-sm text-slate-500"></p>
+             </div>
+        </div>
+
+        <div id="sheet-actions-list" class="space-y-1">
+            </div>
+        
+        <button id="sheet-cancel-btn" class="w-full mt-4 bg-white font-bold py-3 px-4 rounded-lg text-slate-700">Cancelar</button>
+    </div>
+</div>
+                
+
+                <!-- ====================================================================== -->
+                <!-- == VISTAS FUTURAS (DOCUMENTADAS PARA TI)                            == -->
+                <!-- ====================================================================== -->
+                <div id="view-gestion-tiendas" class="main-view hidden animate-enter">
+
+    <div class="bg-white p-3 rounded-xl shadow-lg flex items-center justify-between gap-3 sticky top-0 z-20">
+        <div class="flex-shrink-0 flex space-x-1 bg-slate-100 p-1 rounded-lg">
+            <button class="store-filter-btn active px-4 py-1.5 text-sm font-semibold rounded-md bg-white text-indigo-600 shadow" data-target="pendientes">
+                Pendientes <span th:if="${!tiendasPendientes.isEmpty()}" class="bg-amber-400 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full" th:text="${#lists.size(tiendasPendientes)}"></span>
+            </button>
+            <button class="store-filter-btn px-4 py-1.5 text-sm font-semibold text-slate-500" data-target="activas">Activas</button>
+            <button class="store-filter-btn px-4 py-1.5 text-sm font-semibold text-slate-500" data-target="inactivas">Inactivas</button>
+        </div>
+        <div class="relative flex-grow max-w-xs">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="store-search-input" placeholder="Buscar tienda o NIT..." class="w-full bg-slate-100 pl-9 pr-3 py-2 border border-transparent rounded-lg focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+        </div>
+    </div>
+
+    <div class="mt-4 space-y-4">
+        
+        <div id="store-list-pendientes" class="store-list active">
+            <div th:if="${tiendasPendientes.isEmpty()}" class="text-center py-12 text-slate-500">
+                <i class="fas fa-check-circle fa-3x mb-3 text-green-400"></i>
+                <p class="font-semibold">¡Todo en orden!</p>
+                <p>No hay tiendas nuevas pendientes de aprobación.</p>
+            </div>
+            <div th:each="tienda : ${tiendasPendientes}" class="store-card bg-white p-4 rounded-xl shadow-lg space-y-3" th:data-nombre="${tienda.nombre}" th:data-nit="${tienda.nit}">
+                <div class="flex items-center gap-4">
+                    <img th:src="${tienda.logoUrl != null ? tienda.logoUrl : 'https://via.placeholder.com/150'}" alt="Logo" class="w-16 h-16 rounded-lg object-cover bg-slate-200">
+                    <div class="flex-grow">
+                        <p class="font-bold text-slate-800" th:text="${tienda.nombre}">Nombre de la Tienda</p>
+                        <p class="text-sm text-slate-500">Vendedor: <span th:text="${tienda.vendedor.nombre + ' ' + tienda.vendedor.apellido}"></span></p>
+                        <p class="text-xs text-slate-400 mt-1">Solicitud: <span th:text="${#temporals.format(tienda.fechaCreacion, 'dd MMM yyyy')}"></span></p>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800">PENDIENTE</span>
+                </div>
+                <div class="border-t pt-3 flex justify-end items-center gap-2">
+                    <button class="text-sm font-medium text-slate-600 px-3 py-1 rounded-md hover:bg-slate-100">Ver Detalles</button>
+                    <form th:action="@{/admin/tiendas/inhabilitar/{id}(id=${tienda.id})}" method="post" class="inline">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                        <button type="submit" class="text-sm font-bold text-red-600 px-3 py-1 rounded-md hover:bg-red-50">Rechazar</button>
+                    </form>
+                    <form th:action="@{/admin/tiendas/aprobar/{id}(id=${tienda.id})}" method="post" class="inline">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                        <button type="submit" class="text-sm font-bold bg-green-500 text-white px-4 py-1.5 rounded-lg hover:bg-green-600">Aprobar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="store-list-activas" class="store-list hidden space-y-3">
+            <div th:if="${tiendasActivas.isEmpty()}" class="text-center py-12 text-slate-500">
+                <i class="fas fa-info-circle fa-3x mb-3 text-blue-400"></i>
+                <p>No hay tiendas activas en este momento.</p>
+            </div>
+            <div th:each="tienda : ${tiendasActivas}" class="store-card bg-white p-4 rounded-xl shadow-lg space-y-3" th:data-nombre="${tienda.nombre}" th:data-nit="${tienda.nit}">
+                <div class="flex items-center gap-4">
+                    <img th:src="${tienda.logoUrl ?: 'https://via.placeholder.com/150'}" alt="Logo" class="w-16 h-16 rounded-lg object-cover bg-slate-200">
+                    <div class="flex-grow">
+                        <p class="font-bold text-slate-800" th:text="${tienda.nombre}"></p>
+                        <p class="text-sm text-slate-500">Vendedor: <span th:text="${tienda.vendedor.nombre + ' ' + tienda.vendedor.apellido}"></span></p>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">ACTIVA</span>
+                </div>
+                <div class="border-t pt-3 flex justify-end items-center gap-2">
+                    <button class="open-details-btn text-sm font-medium text-slate-600 px-3 py-1 rounded-md hover:bg-slate-100" th:data-id="${tienda.id}">Ver Detalles</button>
+                    <form th:action="@{/admin/tiendas/inhabilitar/{id}(id=${tienda.id})}" method="post" class="inline">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit" class="text-sm font-bold bg-amber-500 text-white px-4 py-1.5 rounded-lg hover:bg-amber-600">Deshabilitar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="store-list-inactivas" class="store-list hidden space-y-3">
+            <div th:if="${tiendasInactivas.isEmpty()}" class="text-center py-12 text-slate-500">
+                <i class="fas fa-moon fa-3x mb-3 text-slate-400"></i>
+                <p>No hay tiendas inactivas.</p>
+            </div>
+            <div th:each="tienda : ${tiendasInactivas}" class="store-card bg-white p-4 rounded-xl shadow-lg space-y-3" th:data-nombre="${tienda.nombre}" th:data-nit="${tienda.nit}">
+                <div class="flex items-center gap-4">
+                    <img th:src="${tienda.logoUrl ?: 'https://via.placeholder.com/150'}" alt="Logo" class="w-16 h-16 rounded-lg object-cover bg-slate-200 opacity-60">
+                    <div class="flex-grow">
+                        <p class="font-bold text-slate-500" th:text="${tienda.nombre}"></p>
+                        <p class="text-sm text-slate-400">Vendedor: <span th:text="${tienda.vendedor.nombre + ' ' + tienda.vendedor.apellido}"></span></p>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-slate-200 text-slate-600">INACTIVA</span>
+                </div>
+                <div class="border-t pt-3 flex justify-end items-center gap-2">
+                    <button class="open-details-btn text-sm font-medium text-slate-600 px-3 py-1 rounded-md hover:bg-slate-100" th:data-id="${tienda.id}">Ver Detalles</button>
+                    <form th:action="@{/admin/tiendas/reactivar/{id}(id=${tienda.id})}" method="post" class="inline">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit" class="text-sm font-bold bg-blue-500 text-white px-4 py-1.5 rounded-lg hover:bg-blue-600">Reactivar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+    <!-- ====================================================================== -->
+    <!-- == SECCIÓN #3: MODAL PARA CREAR/EDITAR USUARIOS                     == -->
+    <!-- ====================================================================== -->
+    <div id="user-modal" class="hidden fixed inset-0 z-50 flex justify-center items-start p-4 pt-16 sm:items-center">
+        <div class="fixed inset-0 bg-black/60 transition-opacity duration-300"></div>
+        <div class="relative w-full max-w-lg max-h-[85vh] bg-white rounded-2xl shadow-2xl flex flex-col">
+            <form th:action="@{/admin/usuarios/guardar}" th:object="${usuarioDto}" method="post" id="user-form" class="flex flex-col h-full">
+                <input type="hidden" th:field="*{id}">
+                <div class="sticky top-0 p-5 border-b border-slate-200 flex justify-between items-center bg-white/90 backdrop-blur-sm flex-shrink-0">
+                    <h3 id="modal-title" class="text-xl font-bold text-slate-800"></h3>
+                    <button type="button" class="close-modal-btn text-slate-400 hover:text-red-500 text-2xl">&times;</button>
+                </div>
+                <div class="p-6 space-y-5 overflow-y-auto flex-grow">
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Información Personal</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-medium text-slate-700">Nombre</label><input type="text" th:field="*{nombre}" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" required></div>
+                            <div><label class="block text-sm font-medium text-slate-700">Apellido</label><input type="text" th:field="*{apellido}" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" required></div>
+                        </div>
+                        <div><label class="block text-sm font-medium text-slate-700">Cédula</label><input type="text" th:field="*{cedula}" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" required></div>
+                    </div>
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Credenciales de Acceso</h4>
+                        <div><label class="block text-sm font-medium text-slate-700">Correo Electrónico</label><input type="email" th:field="*{correo}" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" required></div>
+                        <div><label class="block text-sm font-medium text-slate-700">Contraseña</label><input type="password" th:field="*{password}" id="password-field" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm" placeholder="Dejar en blanco para no cambiar"></div>
+                    </div>
+                    <div class="space-y-4">
+                         <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Roles y Permisos</h4>
+                         <div class="space-y-2">
+                            <div th:each="rol : ${todosLosRoles}" class="flex items-center p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
+                                <input type="checkbox" th:field="*{rolesIds}" th:value="${rol.id}" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mr-3">
+                                <label th:for="${#ids.prev('rolesIds')}" th:text="${rol.nombre}" class="text-sm font-medium text-slate-700 cursor-pointer"></label>
+                            </div>
+                         </div>
+                    </div>
+                </div>
+                <div class="sticky bottom-0 px-6 py-4 bg-slate-50/80 backdrop-blur-sm flex justify-end space-x-3 border-t border-slate-200 flex-shrink-0">
+                    <button type="button" class="close-modal-btn w-full sm:w-auto bg-white hover:bg-slate-100 text-slate-700 font-semibold py-2 px-4 rounded-lg border border-slate-300 text-sm">Cancelar</button>
+                    <button type="submit" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg text-sm"><i class="fas fa-save mr-2"></i>Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+
+    <div id="store-details-modal" class="hidden fixed inset-0 z-50 flex justify-center items-center p-4">
+    <div id="store-modal-scrim" class="fixed inset-0 bg-black/60"></div>
+    <div class="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="p-5 border-b flex justify-between items-center">
+            <h3 id="store-modal-title" class="text-xl font-bold text-slate-800">Detalles de la Tienda</h3>
+            <button id="store-modal-close-btn" class="text-slate-400 hover:text-red-500 text-2xl">&times;</button>
+        </div>
+        <div class="p-6 space-y-4 overflow-y-auto">
+            <img id="store-modal-logo" src="" alt="Logo" class="w-24 h-24 rounded-xl object-cover bg-slate-200 mx-auto">
+            <div class="text-center">
+                <p id="store-modal-name" class="text-2xl font-bold"></p>
+                <p id="store-modal-vendedor" class="text-sm text-slate-500"></p>
+            </div>
+            <div class="space-y-3 text-sm">
+                 <div class="p-3 bg-slate-50 rounded-lg"><strong class="font-medium text-slate-500 block">NIT</strong><span id="store-modal-nit"></span></div>
+                 <div class="p-3 bg-slate-50 rounded-lg"><strong class="font-medium text-slate-500 block">Descripción</strong><p id="store-modal-descripcion" class="text-slate-700"></p></div>
+                 <div class="grid grid-cols-2 gap-3">
+                    <div class="p-3 bg-slate-50 rounded-lg"><strong class="font-medium text-slate-500 block">Fecha Creación</strong><span id="store-modal-fecha"></span></div>
+                    <div class="p-3 bg-slate-50 rounded-lg"><strong class="font-medium text-slate-500 block">Estado</strong><span id="store-modal-estado"></span></div>
+                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <script th:inline="javascript">
+document.addEventListener('DOMContentLoaded', () => {
+
+    // ======================================================================
+    // SECCIÓN 1: NAVEGACIÓN PRINCIPAL Y CONTEXTUAL
+    // ======================================================================
+    const mainNavLinks = document.querySelectorAll('.main-nav-link');
+    const contextualNavContainer = document.getElementById('contextual-nav');
+    const allViews = document.querySelectorAll('.main-view');
+    const headerTitle = document.getElementById('view-header-title');
+
+    const contextualMenus = {
+        gestion: `
+            <div class="p-2 overflow-x-auto"><div class="flex items-center space-x-2">
+                <a href="#" class="context-nav-link whitespace-nowrap flex-shrink-0 font-medium text-sm text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-lg" data-view="view-gestion-usuarios" data-title="Gestión de Usuarios">Usuarios</a>
+                <a href="#" class="context-nav-link whitespace-nowrap flex-shrink-0 font-medium text-sm text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-lg" data-view="view-gestion-tiendas" data-title="Gestión de Tiendas">Tiendas</a>
+                <a href="#" class="context-nav-link whitespace-nowrap flex-shrink-0 font-medium text-sm text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-lg" data-view="view-gestion-ubicaciones" data-title="Ubicaciones y QR">Ubicaciones y QR</a>
+                <a href="#" class="context-nav-link whitespace-nowrap flex-shrink-0 font-medium text-sm text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-lg" data-view="view-iot" data-title="Ecosistema IoT">IoT</a>
+            </div></div>`
+    };
+
+    function switchView(viewId, title) {
+        allViews.forEach(view => view.classList.remove('active'));
+        const activeView = document.getElementById(viewId);
+        if (activeView) activeView.classList.add('active');
+        headerTitle.textContent = title;
+    }
+
+    mainNavLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const target = link.dataset.target;
+            mainNavLinks.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            contextualNavContainer.innerHTML = contextualMenus[target] || '';
+            const firstSubNavLink = contextualNavContainer.querySelector('.context-nav-link');
+            if (firstSubNavLink) {
+                firstSubNavLink.classList.add('active');
+                switchView(firstSubNavLink.dataset.view, firstSubNavLink.dataset.title);
+            } else {
+                const mainTitle = link.querySelector('.nav-text').textContent;
+                switchView(`view-${target}`, mainTitle);
+            }
+        });
+    });
+
+    contextualNavContainer.addEventListener('click', e => {
+        const targetLink = e.target.closest('.context-nav-link');
+        if (targetLink) {
+            e.preventDefault();
+            contextualNavContainer.querySelectorAll('.context-nav-link').forEach(l => l.classList.remove('active'));
+            targetLink.classList.add('active');
+            switchView(targetLink.dataset.view, targetLink.dataset.title);
+        }
+    });
+
+    document.querySelector('.main-nav-link[data-target="dashboard"]').click();
+
+
+    // ======================================================================
+    // SECCIÓN 2: GRÁFICO DE APEXCHARTS (DASHBOARD)
+    // ======================================================================
+    if (document.querySelector("#orders-chart")) {
+        const options = {
+            series: [{ name: 'Pedidos', data: [31, 40, 28, 51, 42, 109, 100, 110, 98, 85, 70, 60, 80, 99, 115] }],
+            chart: { height: '100%', type: 'area', toolbar: { show: false }, zoom: { enabled: false } },
+            dataLabels: { enabled: false }, stroke: { curve: 'smooth', width: 3, colors: ['#4f46e5'] },
+            fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.1, stops: [0, 90, 100] } },
+            xaxis: { categories: [...Array(15).keys()].map(i => `Día ${i + 1}`), labels: { style: { colors: '#64748b' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+            yaxis: { labels: { style: { colors: '#64748b' } } },
+            tooltip: { x: { format: 'dd MMM' } }, grid: { borderColor: '#e2e8f0', strokeDashArray: 4 }
+        };
+        new ApexCharts(document.querySelector("#orders-chart"), options).render();
+    }
+
+
+    // ======================================================================
+    // SECCIÓN 3: MODAL DE CREAR/EDITAR USUARIO
+    // ======================================================================
+    const userModal = document.getElementById('user-modal');
+    const openModalBtn = document.getElementById('open-modal-btn');
+    const closeModalBtns = document.querySelectorAll('.close-modal-btn');
+    const userForm = document.getElementById('user-form');
+    const modalTitle = document.getElementById('modal-title');
+    const passwordField = document.getElementById('password-field');
+
+    const openModal = () => userModal.classList.remove('hidden');
+    const closeModal = () => userModal.classList.add('hidden');
+
+    if (openModalBtn) {
+        openModalBtn.addEventListener('click', () => {
+            userForm.reset();
+            userForm.querySelector('[name="id"]').value = '0';
+            modalTitle.textContent = 'Crear Nuevo Usuario';
+            passwordField.placeholder = 'Contraseña (requerida)';
+            passwordField.required = true;
+            openModal();
+        });
+    }
+
+    closeModalBtns.forEach(btn => btn.addEventListener('click', closeModal));
+    userModal.addEventListener('click', e => { if (e.target.id === 'user-modal') closeModal(); });
+
+    async function openEditModal(userId) {
+        try {
+            const response = await fetch(`/admin/usuarios/${userId}`);
+            if (!response.ok) throw new Error('Error al obtener los datos del usuario.');
+            const userData = await response.json();
+            
+            userForm.reset();
+            userForm.querySelector('[name="id"]').value = userData.id;
+            userForm.querySelector('[name="nombre"]').value = userData.nombre;
+            userForm.querySelector('[name="apellido"]').value = userData.apellido;
+            userForm.querySelector('[name="correo"]').value = userData.correo;
+            userForm.querySelector('[name="cedula"]').value = userData.cedula;
+            
+            document.querySelectorAll('input[name="rolesIds"]').forEach(checkbox => {
+                checkbox.checked = userData.rolesIds.includes(Number(checkbox.value));
+            });
+            
+            modalTitle.textContent = 'Editar Usuario';
+            passwordField.placeholder = 'Dejar en blanco para no cambiar';
+            passwordField.required = false;
+            openModal();
+        } catch (error) {
+            console.error("Error en la función de editar:", error);
+            alert("No se pudo cargar la información del usuario.");
+        }
+    }
+
+
+    // ======================================================================
+    // SECCIÓN 4: FILTRADO Y BÚSQUEDA EN GESTIÓN DE USUARIOS
+    // ======================================================================
+    const searchInput = document.getElementById('user-search-input');
+    const filterBtns = document.querySelectorAll('.user-filter-btn');
+    const userListContainer = document.getElementById('user-list');
+    const allUserCards = userListContainer ? Array.from(userListContainer.querySelectorAll('.user-card')) : [];
+
+    function filterUsers() {
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        const activeFilter = document.querySelector('.user-filter-btn.active');
+        const activeRol = activeFilter ? activeFilter.dataset.rol : 'TODOS';
+
+        allUserCards.forEach(card => {
+            const nombre = card.dataset.nombre || '';
+            const correo = card.dataset.correo || '';
+            const cedula = card.dataset.cedula || '';
+            const roles = card.dataset.roles || '';
+
+            const matchesSearch = nombre.toLowerCase().includes(searchTerm) || correo.includes(searchTerm) || cedula.includes(searchTerm);
+            const matchesRol = activeRol === 'TODOS' || roles.includes(activeRol);
+            
+            if (matchesSearch && matchesRol) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', filterUsers);
+    }
+
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            filterBtns.forEach(b => b.classList.remove('active', 'bg-white', 'text-indigo-600', 'shadow'));
+            btn.classList.add('active', 'bg-white', 'text-indigo-600', 'shadow');
+            filterUsers();
+        });
+    });
+
+
+    // ======================================================================
+    // SECCIÓN 5: MENÚ DE ACCIONES "BOTTOM SHEET" PARA USUARIOS
+    // ======================================================================
+    const sheet = document.getElementById('user-actions-sheet');
+    const sheetContent = document.getElementById('sheet-content');
+    const sheetScrim = document.getElementById('sheet-scrim');
+    const sheetCancelBtn = document.getElementById('sheet-cancel-btn');
+
+    const openSheet = () => {
+        if (!sheet) return;
+        sheet.classList.remove('hidden');
+        setTimeout(() => sheetContent.classList.remove('translate-y-full'), 10);
+    };
+
+    const closeSheet = () => {
+        if (!sheet) return;
+        sheetContent.classList.add('translate-y-full');
+        setTimeout(() => sheet.classList.add('hidden'), 300);
+    };
+
+    if (sheet) {
+        sheetScrim.addEventListener('click', closeSheet);
+        sheetCancelBtn.addEventListener('click', closeSheet);
+    }
+    
+    allUserCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const userData = card.dataset;
+            const sheetUserAvatar = document.getElementById('sheet-user-avatar');
+            const sheetUserName = document.getElementById('sheet-user-name');
+            const sheetUserEmail = document.getElementById('sheet-user-email');
+            const sheetActionsList = document.getElementById('sheet-actions-list');
+
+            sheetUserAvatar.textContent = userData.nombre.substring(0, 1).toUpperCase();
+            sheetUserName.textContent = userData.nombre;
+            sheetUserEmail.textContent = userData.correo;
+
+            const isActivo = userData.activo === 'true';
+            sheetActionsList.innerHTML = `
+                <a href="#" class="action-edit block w-full text-left p-3 rounded-lg text-slate-700 hover:bg-slate-200 font-medium"><i class="fas fa-pencil-alt w-6 mr-2 text-blue-500"></i>Editar</a>
+                <div class="border-t my-1"></div>
+                <form action="/admin/usuarios/cambiar-estado/${userData.id}" method="post" onsubmit="return confirm('¿Seguro que quieres ${isActivo ? 'inhabilitar' : 'habilitar'} a este usuario?');">
+                    <button type="submit" class="w-full text-left p-3 rounded-lg font-medium ${isActivo ? 'text-red-700 hover:bg-red-50' : 'text-green-700 hover:bg-green-50'}">
+                        <i class="fas ${isActivo ? 'fa-user-slash' : 'fa-user-check'} w-6 mr-2"></i>
+                        ${isActivo ? 'Inhabilitar' : 'Habilitar'}
+                    </button>
+                </form>`;
+            
+            sheetActionsList.querySelector('.action-edit').addEventListener('click', (e) => {
+                e.preventDefault();
+                closeSheet();
+                setTimeout(() => openEditModal(userData.id), 300);
+            });
+
+            openSheet();
+        });
+    });
+
+    // ======================================================================
+    // SECCIÓN 6: GESTIÓN DE TIENDAS (NUEVO)
+    // ======================================================================
+    const storeFilterBtns = document.querySelectorAll('.store-filter-btn');
+    const storeLists = document.querySelectorAll('.store-list');
+    const storeSearchInput = document.getElementById('store-search-input');
+
+    if (storeFilterBtns.length > 0) {
+        storeFilterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetListId = `store-list-${btn.dataset.target}`;
+                
+                // Actualizar botones
+                storeFilterBtns.forEach(b => b.classList.remove('active', 'bg-white', 'text-indigo-600', 'shadow'));
+                btn.classList.add('active', 'bg-white', 'text-indigo-600', 'shadow');
+
+                // Mostrar/Ocultar listas
+                storeLists.forEach(list => {
+                    if (list.id === targetListId) {
+                        list.classList.remove('hidden');
+                        list.classList.add('active');
+                    } else {
+                        list.classList.add('hidden');
+                        list.classList.remove('active');
+                    }
+                });
+                
+                if(storeSearchInput) storeSearchInput.value = '';
+                filterStores();
+            });
+        });
+    }
+
+    function filterStores() {
+        const searchTerm = storeSearchInput ? storeSearchInput.value.toLowerCase() : '';
+        const activeList = document.querySelector('.store-list.active');
+        if (!activeList) return;
+
+        const allStoreCards = activeList.querySelectorAll('.store-card');
+
+        allStoreCards.forEach(card => {
+            const nombre = (card.dataset.nombre || '').toLowerCase();
+            const nit = (card.dataset.nit || '').toLowerCase();
+            const matchesSearch = nombre.includes(searchTerm) || nit.includes(searchTerm);
+
+            if (matchesSearch) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    if (storeSearchInput) {
+        storeSearchInput.addEventListener('input', filterStores);
+    }
+
+
+
+
+    /* ======================================================== */
+/* LÓGICA NUEVA PARA EL MODAL DE DETALLES DE TIENDA         */
+/* ======================================================== */
+const storeModal = document.getElementById('store-details-modal');
+const storeModalCloseBtn = document.getElementById('store-modal-close-btn');
+const storeModalScrim = document.getElementById('store-modal-scrim');
+
+function openStoreDetailsModal() { if(storeModal) storeModal.classList.remove('hidden'); }
+function closeStoreDetailsModal() { if(storeModal) storeModal.classList.add('hidden'); }
+
+if(storeModal) {
+    storeModalCloseBtn.addEventListener('click', closeStoreDetailsModal);
+    storeModalScrim.addEventListener('click', closeStoreDetailsModal);
+}
+
+document.body.addEventListener('click', async (e) => {
+    // Hemos cambiado el selector para que sea más específico
+    const openBtn = e.target.closest('.open-details-btn');
+    if (openBtn) {
+        const storeId = openBtn.dataset.id;
+        try {
+            const response = await fetch(`/admin/tiendas/${storeId}`);
+            if (!response.ok) throw new Error('Tienda no encontrada');
+            const data = await response.json();
+
+            // Poblar el modal con los datos
+            document.getElementById('store-modal-logo').src = data.logoUrl || 'https://via.placeholder.com/150';
+            document.getElementById('store-modal-name').textContent = data.nombre;
+            document.getElementById('store-modal-vendedor').textContent = `por ${data.nombreVendedor}`;
+            document.getElementById('store-modal-nit').textContent = data.nit;
+            document.getElementById('store-modal-descripcion').textContent = data.descripcion;
+            document.getElementById('store-modal-fecha').textContent = new Date(data.fechaCreacion).toLocaleDateString('es-CO');
+            
+            const estadoEl = document.getElementById('store-modal-estado');
+            estadoEl.textContent = data.estado;
+            estadoEl.className = 'px-2 py-1 text-xs font-bold rounded-full'; // Resetea clases
+            if (data.estado === 'ACTIVA') estadoEl.classList.add('bg-green-100', 'text-green-800');
+            else if (data.estado === 'PENDIENTE') estadoEl.classList.add('bg-amber-100', 'text-amber-800');
+            else estadoEl.classList.add('bg-slate-200', 'text-slate-600');
+
+            openStoreDetailsModal();
+        } catch (error) {
+            console.error('Error al cargar detalles de la tienda:', error);
+            alert('No se pudo cargar la información de la tienda.');
+        }
+    }
+});
+
+});
+</script>
+</body>
+</html>

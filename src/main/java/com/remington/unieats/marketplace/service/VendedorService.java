@@ -8,6 +8,8 @@ import com.remington.unieats.marketplace.model.entity.Horario;
 import com.remington.unieats.marketplace.model.entity.Tienda;
 import com.remington.unieats.marketplace.model.entity.Usuario;
 import org.springframework.web.multipart.MultipartFile;
+import com.remington.unieats.marketplace.dto.CategoriaOpcionCreacionDTO;
+import com.remington.unieats.marketplace.model.entity.CategoriaOpcion;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,4 +27,10 @@ public interface VendedorService {
     void actualizarHorarios(Tienda tienda, List<HorarioUpdateDTO> horariosDTO);
 
     List<PedidoVendedorDTO> getPedidosDeLaTienda(Tienda tienda);
+
+    List<CategoriaOpcion> getCategoriasDeOpciones(Tienda tienda);
+    
+    CategoriaOpcion crearCategoriaConOpciones(CategoriaOpcionCreacionDTO dto, Tienda tienda);
+
+    void asignarCategoriaAProducto(Integer productoId, Integer categoriaId);
 }

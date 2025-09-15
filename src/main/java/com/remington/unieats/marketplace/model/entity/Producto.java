@@ -2,6 +2,7 @@ package com.remington.unieats.marketplace.model.entity;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.util.Set; // Importar Set
 
 @Entity
 @Table(name = "productos")
@@ -31,6 +32,15 @@ public class Producto {
     @JoinColumn(name = "tienda_id", nullable = false)
     private Tienda tienda;
 
+     @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "producto_categorias_opciones",
+        joinColumns = @JoinColumn(name = "producto_id"),
+        inverseJoinColumns = @JoinColumn(name = "categoria_opcion_id")
+    )
+    private Set<CategoriaOpcion> categoriasDeOpciones;
+
+
     // Getters y Setters
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -46,4 +56,13 @@ public class Producto {
     public void setDisponible(boolean disponible) { this.disponible = disponible; }
     public Tienda getTienda() { return tienda; }
     public void setTienda(Tienda tienda) { this.tienda = tienda; }
+
+     public Set<CategoriaOpcion> getCategoriasDeOpciones() {
+        return categoriasDeOpciones;
+    }
+
+    public void setCategoriasDeOpciones(Set<CategoriaOpcion> categoriasDeOpciones) {
+        this.categoriasDeOpciones = categoriasDeOpciones;
+    }
+
 }

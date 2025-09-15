@@ -1,16 +1,12 @@
 package com.remington.unieats.marketplace.service;
 
-import com.remington.unieats.marketplace.dto.HorarioUpdateDTO;
-import com.remington.unieats.marketplace.dto.PedidoVendedorDTO;
-import com.remington.unieats.marketplace.dto.TiendaCreacionDTO;
-import com.remington.unieats.marketplace.dto.TiendaUpdateDTO;
+import com.remington.unieats.marketplace.dto.*;
 import com.remington.unieats.marketplace.model.entity.*;
 import com.remington.unieats.marketplace.model.enums.DiaSemana;
-import com.remington.unieats.marketplace.model.repository.HorarioRepository;
-import com.remington.unieats.marketplace.model.repository.PedidoRepository;
-import com.remington.unieats.marketplace.model.repository.TiendaRepository;
+import com.remington.unieats.marketplace.model.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -19,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +27,9 @@ public class VendedorServiceImpl implements VendedorService {
     @Autowired private TiendaRepository tiendaRepository;
     @Autowired private HorarioRepository horarioRepository;
     @Autowired private PedidoRepository pedidoRepository;
+    @Autowired private ProductoRepository productoRepository;
+    @Autowired private CategoriaOpcionRepository categoriaOpcionRepository;
+    @Autowired private OpcionRepository opcionRepository;
 
     private final Path rootLocation = Paths.get("uploads");
 
@@ -39,6 +39,7 @@ public class VendedorServiceImpl implements VendedorService {
     }
 
     @Override
+    @Transactional
     public Tienda crearTienda(TiendaCreacionDTO tiendaDTO, Usuario vendedor, MultipartFile logoFile) {
         if (tiendaRepository.findByVendedor(vendedor).isPresent()) {
             throw new IllegalStateException("Este vendedor ya tiene una tienda registrada.");
@@ -56,7 +57,6 @@ public class VendedorServiceImpl implements VendedorService {
         
         Tienda tiendaGuardada = tiendaRepository.save(nuevaTienda);
 
-        // Crear horarios por defecto
         for (DiaSemana dia : DiaSemana.values()) {
             Horario horario = new Horario();
             horario.setDia(dia);
@@ -68,6 +68,7 @@ public class VendedorServiceImpl implements VendedorService {
     }
 
     @Override
+    @Transactional
     public Tienda actualizarTienda(Tienda tienda, TiendaUpdateDTO updateDTO, MultipartFile logoFile) {
         tienda.setNombre(updateDTO.getNombre());
         tienda.setDescripcion(updateDTO.getDescripcion());
@@ -85,6 +86,7 @@ public class VendedorServiceImpl implements VendedorService {
     }
 
     @Override
+    @Transactional
     public void actualizarHorarios(Tienda tienda, List<HorarioUpdateDTO> horariosDTO) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
         for (HorarioUpdateDTO dto : horariosDTO) {
@@ -110,13 +112,58 @@ public class VendedorServiceImpl implements VendedorService {
                 .map(this::convertirAPedidoVendedorDTO)
                 .collect(Collectors.toList());
     }
+    
+    @Override
+    public List<CategoriaOpcion> getCategoriasDeOpciones(Tienda tienda) {
+        return categoriaOpcionRepository.findByTienda(tienda);
+    }
 
+    @Override
+    @Transactional
+    public CategoriaOpcion crearCategoriaConOpciones(CategoriaOpcionCreacionDTO dto, Tienda tienda) {
+        CategoriaOpcion nuevaCategoria = new CategoriaOpcion();
+        nuevaCategoria.setNombre(dto.getNombre());
+        nuevaCategoria.setTienda(tienda);
+
+        List<Opcion> opciones = new ArrayList<>();
+        if (dto.getOpciones() != null) {
+            for (OpcionCreacionDTO opcionDTO : dto.getOpciones()) {
+                Opcion nuevaOpcion = new Opcion();
+                nuevaOpcion.setNombre(opcionDTO.getNombre());
+                nuevaOpcion.setPrecioAdicional(opcionDTO.getPrecioAdicional());
+                nuevaOpcion.setCategoria(nuevaCategoria);
+                opciones.add(nuevaOpcion);
+            }
+        }
+        nuevaCategoria.setOpciones(opciones);
+        
+        return categoriaOpcionRepository.save(nuevaCategoria);
+    }
+
+    @Override
+    @Transactional
+    public void asignarCategoriaAProducto(Integer productoId, Integer categoriaId) {
+        Producto producto = productoRepository.findById(productoId)
+            .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+        CategoriaOpcion categoria = categoriaOpcionRepository.findById(categoriaId)
+            .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
+
+        if (!producto.getTienda().getId().equals(categoria.getTienda().getId())) {
+            throw new IllegalStateException("La categoría no pertenece a la tienda de este producto.");
+        }
+
+        producto.getCategoriasDeOpciones().add(categoria);
+        productoRepository.save(producto);
+    }
+    
     private String storeFile(MultipartFile file) {
         try {
             if (file.isEmpty()) {
                 throw new RuntimeException("No se puede guardar un archivo vacío.");
             }
-            Files.createDirectories(rootLocation);
+            if (!Files.exists(rootLocation)) {
+                Files.createDirectories(rootLocation);
+            }
             String filename = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
             Files.copy(file.getInputStream(), this.rootLocation.resolve(filename));
             return "/uploads/" + filename;

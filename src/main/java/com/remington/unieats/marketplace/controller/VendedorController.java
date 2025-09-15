@@ -1,11 +1,10 @@
 package com.remington.unieats.marketplace.controller;
 
 import com.remington.unieats.marketplace.dto.*;
-import com.remington.unieats.marketplace.model.entity.Horario;
-import com.remington.unieats.marketplace.model.entity.Producto;
-import com.remington.unieats.marketplace.model.entity.Tienda;
-import com.remington.unieats.marketplace.model.entity.Usuario;
+import com.remington.unieats.marketplace.model.entity.*;
+import com.remington.unieats.marketplace.model.enums.EstadoPedido;
 import com.remington.unieats.marketplace.model.repository.UsuarioRepository;
+import com.remington.unieats.marketplace.service.PedidoService;
 import com.remington.unieats.marketplace.service.ProductoService;
 import com.remington.unieats.marketplace.service.VendedorService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -26,6 +26,7 @@ public class VendedorController {
     @Autowired private VendedorService vendedorService;
     @Autowired private UsuarioRepository usuarioRepository;
     @Autowired private ProductoService productoService;
+    @Autowired private PedidoService pedidoService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<?> obtenerDatosDashboard(Authentication authentication) {
@@ -110,6 +111,74 @@ public class VendedorController {
             vendedorService.actualizarHorarios(tienda, horariosDTO);
             return ResponseEntity.ok().build();
         } catch(Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/opciones/categorias")
+    public ResponseEntity<List<CategoriaOpcion>> obtenerCategorias(Authentication authentication) {
+        String correo = authentication.getName();
+        Usuario vendedor = usuarioRepository.findByCorreo(correo).orElseThrow(() -> new IllegalStateException("Vendedor no encontrado."));
+        Tienda tienda = vendedorService.findTiendaByVendedor(vendedor).orElseThrow(() -> new IllegalStateException("Tienda no encontrada."));
+        
+        List<CategoriaOpcion> categorias = vendedorService.getCategoriasDeOpciones(tienda);
+        return ResponseEntity.ok(categorias);
+    }
+
+    @PostMapping("/opciones/categorias/crear")
+    public ResponseEntity<?> crearCategoria(@RequestBody CategoriaOpcionCreacionDTO dto, Authentication authentication) {
+        try {
+            String correo = authentication.getName();
+            Usuario vendedor = usuarioRepository.findByCorreo(correo).orElseThrow(() -> new IllegalStateException("Vendedor no encontrado."));
+            Tienda tienda = vendedorService.findTiendaByVendedor(vendedor).orElseThrow(() -> new IllegalStateException("Tienda no encontrada."));
+            
+            CategoriaOpcion nuevaCategoria = vendedorService.crearCategoriaConOpciones(dto, tienda);
+            return ResponseEntity.status(HttpStatus.CREATED).body(nuevaCategoria);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/productos/{productoId}/asignar-categoria")
+    public ResponseEntity<?> asignarCategoria(@PathVariable Integer productoId, @RequestBody Map<String, Integer> payload) {
+        try {
+            Integer categoriaId = payload.get("categoriaId");
+            if (categoriaId == null) {
+                return ResponseEntity.badRequest().body("Falta el campo 'categoriaId'");
+            }
+            vendedorService.asignarCategoriaAProducto(productoId, categoriaId);
+            return ResponseEntity.ok().body("Categoría asignada correctamente.");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/pedidos/{pedidoId}/aceptar")
+    public ResponseEntity<?> aceptarPedido(@PathVariable Integer pedidoId) {
+        try {
+            pedidoService.actualizarEstadoPedido(pedidoId, EstadoPedido.EN_PREPARACION);
+            return ResponseEntity.ok().body("Pedido aceptado y movido a 'En Preparación'");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/pedidos/{pedidoId}/listo")
+    public ResponseEntity<?> pedidoListo(@PathVariable Integer pedidoId) {
+        try {
+            pedidoService.actualizarEstadoPedido(pedidoId, EstadoPedido.LISTO_PARA_RECOGER);
+            return ResponseEntity.ok().body("Pedido marcado como 'Listo para Recoger'");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/pedidos/{pedidoId}/cancelar")
+    public ResponseEntity<?> cancelarPedido(@PathVariable Integer pedidoId) {
+        try {
+            pedidoService.actualizarEstadoPedido(pedidoId, EstadoPedido.CANCELADO);
+            return ResponseEntity.ok().body("Pedido cancelado");
+        } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }

@@ -1,8 +1,10 @@
 package com.remington.unieats.marketplace.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.remington.unieats.marketplace.model.enums.EstadoTienda;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "tiendas")
@@ -21,7 +23,7 @@ public class Tienda {
     @Column(nullable = false, unique = true)
     private String nit;
 
-    private String logoUrl; // URL a la imagen del logo
+    private String logoUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -30,12 +32,15 @@ public class Tienda {
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private LocalDateTime fechaCreacion = LocalDateTime.now();
 
-    // Relación: Muchas tiendas pueden pertenecer a UN usuario (vendedor)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vendedor_id", nullable = false)
     private Usuario vendedor;
+    
+    @OneToMany(mappedBy = "tienda")
+    @JsonManagedReference
+    private List<CategoriaOpcion> categoriasDeOpciones;
 
-    // Getters y Setters
+    // --- Getters y Setters ---
 
     public Integer getId() {
         return id;
@@ -99,5 +104,13 @@ public class Tienda {
 
     public void setVendedor(Usuario vendedor) {
         this.vendedor = vendedor;
+    }
+
+    public List<CategoriaOpcion> getCategoriasDeOpciones() {
+        return categoriasDeOpciones;
+    }
+
+    public void setCategoriasDeOpciones(List<CategoriaOpcion> categoriasDeOpciones) {
+        this.categoriasDeOpciones = categoriasDeOpciones;
     }
 }

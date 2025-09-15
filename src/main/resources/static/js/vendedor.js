@@ -12,8 +12,14 @@ document.addEventListener('DOMContentLoaded', () => {
             csrfToken: document.querySelector("meta[name='_csrf']")?.getAttribute("content"),
             csrfHeader: document.querySelector("meta[name='_csrf_header']")?.getAttribute("content"),
             apiEndpoints: {
-                getDashboard: '/api/vendedor/dashboard',
+                getDashboard: '/api/vendedor/dashboard', 
                 getPedidos: '/api/vendedor/pedidos', // Endpoint para obtener pedidos
+                aceptarPedido: '/api/vendedor/pedidos/{id}/aceptar',
+                listoPedido: '/api/vendedor/pedidos/{id}/listo',
+                cancelarPedido: '/api/vendedor/pedidos/{id}/cancelar',
+                getCategorias: '/api/vendedor/opciones/categorias',
+                crearCategoria: '/api/vendedor/opciones/categorias/crear',
+                asignarCategoria: '/api/vendedor/productos/',
                 createStore: '/api/vendedor/tienda/crear',
                 updateStore: '/api/vendedor/tienda/actualizar',
                 createProduct: '/api/vendedor/productos/crear',
@@ -25,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tienda: null,
             productos: [],
             horarios: [],
+            categorias: [],
             fabButton: null
         },
 
@@ -198,6 +205,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             
+            /* ------------------------------------------------------Pedidos ------------------------------------------------------------------------------*/
+            /* ------------------------------------------------------Pedidos ------------------------------------------------------------------------------*/
+
+
+
+
+
+
+            // ...
+            // --- VISTA DE PEDIDOS AHORA INCLUYE EL HEADER ---
             Pedidos: {
                 render(data) {
                     const tienda = App.state.tienda;
@@ -205,9 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         PENDIENTE:  { label: 'En Revisión', icon: 'fas fa-clock', colors: 'bg-amber-100 text-amber-800' },
                         ACTIVA:     { label: 'Activa', icon: 'fas fa-check-circle', colors: 'bg-green-100 text-green-800' },
                         INACTIVA:   { label: 'Inactiva', icon: 'fas fa-times-circle', colors: 'bg-red-100 text-red-800' },
-                        DEFAULT:    { label: 'Desconocido', icon: 'fas fa-question-circle', colors: 'bg-slate-100 text-slate-800' }
                     };
-                    const status = statusConfig[tienda.estado] || statusConfig.DEFAULT;
+                    const status = statusConfig[tienda.estado] || {};
                     const statusHtml = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full ${status.colors} inline-flex items-center gap-1.5"><i class="${status.icon}"></i>${status.label}</span>`;
                     const ventasHoy = (tienda.ventasHoy || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
                     const pedidosNuevos = tienda.pedidosNuevos || 0;
@@ -229,12 +245,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="store-status-toggle" ${estaAbierta ? 'checked' : ''} class="sr-only peer"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div></label>
                                 </div>
                             </header>
-                            
                             <div id="pedidos-container" class="p-4 pt-0 space-y-3">
-                                <div class="bg-white p-6 rounded-xl shadow-md text-center">
-                                    <i class="fas fa-spinner fa-spin text-2xl text-indigo-400 mb-3"></i>
-                                    <p class="mt-2 text-slate-500">Cargando pedidos...</p>
-                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-md text-center"><i class="fas fa-spinner fa-spin text-2xl text-indigo-400 mb-3"></i><p class="mt-2 text-slate-500">Cargando pedidos...</p></div>
                             </div>
                         </div>`;
                 },
@@ -243,54 +255,96 @@ document.addEventListener('DOMContentLoaded', () => {
                     const container = document.getElementById('pedidos-container');
                     if (!container) return;
 
+                    container.removeEventListener('click', this.handlePedidoAction);
+                    container.addEventListener('click', this.handlePedidoAction);
+
                     try {
                         const response = await fetch(App.config.apiEndpoints.getPedidos);
                         if (!response.ok) throw new Error('No se pudieron cargar los pedidos.');
-                        
                         const pedidos = await response.json();
-
-                        if (pedidos.length === 0) {
-                            container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center"><i class="fas fa-receipt text-4xl text-indigo-400 mb-3"></i><h2 class="text-xl font-bold">Pedidos Activos</h2><p class="mt-2 text-slate-500">Aún no tienes pedidos nuevos.</p></div>`;
-                            return;
-                        }
-
-                        const formatPrice = (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
-                        
-                        container.innerHTML = pedidos.map(pedido => `
-                            <div class="bg-white p-4 rounded-xl shadow-md space-y-2">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-bold text-slate-800">Pedido #${pedido.id} - <span class="font-normal">${pedido.nombreComprador}</span></p>
-                                        <p class="text-xs text-slate-500">${new Date(pedido.fechaCreacion).toLocaleString()}</p>
-                                    </div>
-                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">${pedido.estado}</span>
-                                </div>
-                                <div class="border-t border-b py-2 space-y-1">
-                                    ${pedido.detalles.map(d => `
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-slate-600">${d.cantidad}x ${d.nombreProducto}</span>
-                                            <span class="text-slate-500">${formatPrice(d.precioUnitario * d.cantidad)}</span>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <p class="font-bold text-lg text-slate-800">Total: ${formatPrice(pedido.total)}</p>
-                                    <details class="relative">
-                                        <summary class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer select-none">Acciones</summary>
-                                        <div class="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-xl z-10 border">
-                                            <a href="#" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50 font-semibold">Aceptar</a>
-                                            <a href="#" class="block px-4 py-2 text-sm text-red-700 hover:bg-red-50 font-semibold">Rechazar</a>
-                                        </div>
-                                    </details>
-                                </div>
-                            </div>
-                        `).join('');
-
+                        this.renderPedidos(pedidos, container);
                     } catch (error) {
                         container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center text-red-500"><p>${error.message}</p></div>`;
                     }
+                },
+
+                renderPedidos(pedidos, container) {
+                    if (pedidos.length === 0) {
+                        container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center"><i class="fas fa-receipt text-4xl text-indigo-400 mb-3"></i><h2 class="text-xl font-bold">Pedidos Activos</h2><p class="mt-2 text-slate-500">Aún no tienes pedidos nuevos.</p></div>`;
+                        return;
+                    }
+
+                    const formatPrice = (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
+                    
+                    container.innerHTML = pedidos.map(pedido => {
+                        const statusConfig = {
+                            'PENDIENTE': { text: 'Pendiente', colors: 'bg-amber-100 text-amber-800' },
+                            'EN_PREPARACION': { text: 'En Preparación', colors: 'bg-blue-100 text-blue-800' },
+                            'LISTO_PARA_RECOGER': { text: 'Listo', colors: 'bg-green-100 text-green-800' },
+                            'CANCELADO': { text: 'Cancelado', colors: 'bg-red-100 text-red-800' },
+                            'COMPLETADO': { text: 'Completado', colors: 'bg-gray-100 text-gray-800' }
+                        };
+                        const currentStatus = statusConfig[pedido.estado] || {};
+
+                        let actionButtons = '';
+                        if (pedido.estado === 'PENDIENTE') {
+                            actionButtons = `
+                                <button class="bg-red-100 text-red-700 font-semibold px-3 py-1 rounded-lg text-sm" data-action="cancelar" data-id="${pedido.id}">Rechazar</button>
+                                <button class="bg-green-500 text-white font-semibold px-3 py-1 rounded-lg text-sm" data-action="aceptar" data-id="${pedido.id}">Aceptar</button>`;
+                        } else if (pedido.estado === 'EN_PREPARACION') {
+                            actionButtons = `<button class="bg-indigo-600 text-white font-semibold px-3 py-1 rounded-lg text-sm w-full" data-action="listo" data-id="${pedido.id}">Marcar como Listo</button>`;
+                        } else {
+                            actionButtons = `<p class="text-sm text-slate-500 pr-2">Sin acciones</p>`;
+                        }
+
+                        return `
+                        <div class="bg-white p-4 rounded-xl shadow-md space-y-2" data-pedido-id="${pedido.id}">
+                            <div class="flex justify-between items-start">
+                                <div><p class="font-bold text-slate-800">Pedido #${pedido.id} - <span class="font-normal">${pedido.nombreComprador}</span></p><p class="text-xs text-slate-500">${new Date(pedido.fechaCreacion).toLocaleString()}</p></div>
+                                <span class="status-badge px-2 py-1 text-xs font-semibold rounded-full ${currentStatus.colors}">${currentStatus.text}</span>
+                            </div>
+                            <div class="border-t border-b py-2 space-y-1">
+                                ${pedido.detalles.map(d => `<div class="flex justify-between text-sm"><span class="text-slate-600">${d.cantidad}x ${d.nombreProducto}</span><span class="text-slate-500">${formatPrice(d.precioUnitario * d.cantidad)}</span></div>`).join('')}
+                            </div>
+                            <div class="pt-2 flex justify-between items-center">
+                                <p class="font-bold text-lg text-slate-800">Total: ${formatPrice(pedido.total)}</p>
+                                <div class="flex gap-2">${actionButtons}</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                },
+
+                async handlePedidoAction(e) {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+
+                    const { action, id } = button.dataset;
+                    let endpoint = '';
+
+                    switch(action) {
+                        case 'aceptar': endpoint = App.config.apiEndpoints.aceptarPedido.replace('{id}', id); break;
+                        case 'listo': endpoint = App.config.apiEndpoints.listoPedido.replace('{id}', id); break;
+                        case 'cancelar': endpoint = App.config.apiEndpoints.cancelarPedido.replace('{id}', id); break;
+                        default: return;
+                    }
+
+                    try {
+                        await App.api.request(endpoint, { method: 'POST' }, button);
+                        App.ui.showToast(`Pedido #${id} actualizado.`);
+                        // Recargamos solo la lista de pedidos para ver el cambio
+                        App.components.Pedidos.init(); 
+                    } catch (error) { /* ya manejado en App.api */ }
                 }
             },
+// ...
+
+
+
+
+
+
+            /* ------------------------------------------------------Pedidos ------------------------------------------------------------------------------*/
+            /* ------------------------------------------------------Pedidos ------------------------------------------------------------------------------*/
             
             Productos: {
                 render(data) {
@@ -306,20 +360,37 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('product-form')?.reset();
                         const preview = document.getElementById('image-preview');
                         if(preview) preview.src = 'https://via.placeholder.com/300x200';
+                        
+                        App.components.Opciones.renderAsignacion(App.state.categorias, { categoriasDeOpciones: [] });
                     });
+                    
                     const productForm = document.getElementById('product-form');
                     if (productForm) {
                         productForm.addEventListener('submit', async (e) => {
                             e.preventDefault();
                             const formData = new FormData(productForm);
+                            
+                            const categoriasSeleccionadas = Array.from(document.querySelectorAll('input[name="categoriasAsignadas"]:checked')).map(cb => cb.value);
+                            
                             const submitButton = productForm.querySelector('button[type="submit"]');
                             try {
-                                await App.api.request(App.config.apiEndpoints.createProduct, { method: 'POST', body: formData }, submitButton);
+                                const response = await App.api.request(App.config.apiEndpoints.createProduct, { method: 'POST', body: formData }, submitButton);
+                                const nuevoProducto = await response.json();
+
+                                for (const categoriaId of categoriasSeleccionadas) {
+                                    await App.api.request(App.config.apiEndpoints.asignarCategoria + nuevoProducto.id + '/asignar-categoria', {
+                                        method: 'POST',
+                                        body: JSON.stringify({ categoriaId: parseInt(categoriaId) })
+                                    });
+                                }
+                                
                                 App.ui.showToast('Producto añadido con éxito');
                                 setTimeout(() => window.location.reload(), 1500);
+
                             } catch (error) { /* Error manejado */ }
                         });
                     }
+                    
                     const productContainer = document.getElementById('view-productos');
                     if (productContainer) {
                         productContainer.addEventListener('click', (e) => {
@@ -342,7 +413,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             Perfil: {
                 render(data) {
-                    return `<div id="view-perfil" class="main-view p-4"><header class="mb-4"><h1 class="text-2xl font-bold text-slate-800">Mi Tienda</h1></header><div class="space-y-4"><div class="bg-white rounded-xl shadow-md"><nav class="flex flex-col"><a href="#" data-modal-open="edit-store-modal" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-store w-6 text-center text-indigo-500"></i><div><p class="font-semibold">Perfil de la Tienda</p><p class="text-sm text-slate-500">Edita nombre, logo y descripción</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a><a href="#" data-modal-open="schedule-modal" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-clock w-6 text-center text-blue-500"></i><div><p class="font-semibold">Horarios de Atención</p><p class="text-sm text-slate-500">Define cuándo recibes pedidos</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a><a href="#" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-tags w-6 text-center text-amber-500"></i><div><p class="font-semibold">Promociones</p><p class="text-sm text-slate-500">Crea ofertas y paquetes</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a></nav></div><form id="logout-form" action="/logout" method="post"><input type="hidden" name="_csrf" value="${App.config.csrfToken}" /><button type="submit" class="w-full bg-white hover:bg-red-50 text-red-600 font-semibold py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-3"><i class="fas fa-sign-out-alt"></i>Cerrar Sesión</button></form></div></div>`;
+                    return `<div id="view-perfil" class="main-view p-4"><header class="mb-4"><h1 class="text-2xl font-bold text-slate-800">Mi Tienda</h1></header><div class="space-y-4"><div class="bg-white rounded-xl shadow-md"><nav class="flex flex-col"><a href="#" data-modal-open="edit-store-modal" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-store w-6 text-center text-indigo-500"></i><div><p class="font-semibold">Perfil de la Tienda</p><p class="text-sm text-slate-500">Edita nombre, logo y descripción</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a><a href="#" data-modal-open="schedule-modal" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-clock w-6 text-center text-blue-500"></i><div><p class="font-semibold">Horarios de Atención</p><p class="text-sm text-slate-500">Define cuándo recibes pedidos</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a>
+                    
+                    <a href="#" data-modal-open="options-modal" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-plus-square w-6 text-center text-purple-500"></i><div><p class="font-semibold">Gestionar Opciones</p><p class="text-sm text-slate-500">Crea salsas, adiciones, etc.</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a>
+
+                    <a href="#" class="flex items-center gap-4 p-4 border-b hover:bg-slate-50"><i class="fas fa-tags w-6 text-center text-amber-500"></i><div><p class="font-semibold">Promociones</p><p class="text-sm text-slate-500">Crea ofertas y paquetes</p></div><i class="fas fa-chevron-right text-slate-400 ml-auto"></i></a></nav></div><form id="logout-form" action="/logout" method="post"><input type="hidden" name="_csrf" value="${App.config.csrfToken}" /><button type="submit" class="w-full bg-white hover:bg-red-50 text-red-600 font-semibold py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-3"><i class="fas fa-sign-out-alt"></i>Cerrar Sesión</button></form></div></div>`;
                 },
                 init(data) {
                       App.ui.initModal('edit-store-modal', () => {
@@ -365,6 +440,12 @@ document.addEventListener('DOMContentLoaded', () => {
                       }
                       App.ui.initModal('schedule-modal', () => {
                           this.ScheduleManager.init(data.horarios);
+                      });
+
+                      // --- LÓGICA AÑADIDA PARA EL NUEVO MODAL ---
+                      App.ui.initModal('options-modal', () => {
+                          // Cuando se abra el modal, inicializamos el nuevo componente de Opciones
+                          App.components.Opciones.init();
                       });
                 },
                 ScheduleManager: {
@@ -403,8 +484,117 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                     }
                 }
-            }
+            },
+
+            Opciones: {
+                init() {
+                    const container = document.getElementById('options-list-container');
+                    if(!container) return;
+                    container.innerHTML = `<div class="text-center p-4"><i class="fas fa-spinner fa-spin"></i></div>`;
+
+                    fetch(App.config.apiEndpoints.getCategorias)
+                        .then(res => {
+                            if (!res.ok) throw new Error('Error al cargar categorías');
+                            return res.json();
+                        })
+                        .then(categorias => {
+                            App.state.categorias = categorias;
+                            this.render(categorias);
+                        })
+                        .catch(err => {
+                            container.innerHTML = `<p class="text-red-500">${err.message}</p>`;
+                        });
+
+                    const form = document.getElementById('crear-categoria-form');
+                    form.removeEventListener('submit', this.handleFormSubmit);
+                    form.addEventListener('submit', this.handleFormSubmit);
+
+                    const addOptionBtn = document.getElementById('add-option-btn');
+                    addOptionBtn.removeEventListener('click', this.addOptionField);
+                    addOptionBtn.addEventListener('click', this.addOptionField);
+                },
+
+                render(categorias) {
+                    const container = document.getElementById('options-list-container');
+                    if (categorias.length === 0) {
+                        container.innerHTML = `<p class="text-slate-500 text-sm p-4 text-center">Aún no has creado categorías de opciones.</p>`;
+                        return;
+                    }
+                    container.innerHTML = categorias.map(cat => `
+                        <div class="border rounded-lg p-3 mb-2">
+                            <p class="font-bold">${cat.nombre}</p>
+                            <div class="text-xs text-slate-600">
+                                ${cat.opciones.map(op => `<span>${op.nombre} (${(op.precioAdicional || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })})</span>`).join(', ')}
+                            </div>
+                        </div>
+                    `).join('');
+                },
+                
+                addOptionField() {
+                    const container = document.getElementById('new-options-container');
+                    const newField = document.createElement('div');
+                    newField.className = 'flex gap-2 items-center mb-2';
+                    newField.innerHTML = `
+                        <input type="text" placeholder="Nombre Opción" class="input-field block w-full px-2 py-2 border border-slate-300 rounded-md option-name" required>
+                        <input type="number" placeholder="Precio" value="0" step="100" class="input-field block w-32 px-2 py-2 border border-slate-300 rounded-md option-price" required>
+                        <button type="button" class="text-red-500 text-2xl font-bold remove-option-btn">&times;</button>
+                    `;
+                    container.appendChild(newField);
+                    newField.querySelector('.remove-option-btn').addEventListener('click', () => newField.remove());
+                },
+
+                async handleFormSubmit(e) {
+                    e.preventDefault();
+                    const form = e.target;
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    const nombreCategoria = form.querySelector('input[name="nombreCategoria"]').value;
+                    
+                    const opciones = [];
+                    form.querySelectorAll('#new-options-container > div').forEach(field => {
+                        opciones.push({
+                            nombre: field.querySelector('.option-name').value,
+                            precioAdicional: parseFloat(field.querySelector('.option-price').value)
+                        });
+                    });
+
+                    const dto = { nombre: nombreCategoria, opciones: opciones };
+
+                    try {
+                        await App.api.request(App.config.apiEndpoints.crearCategoria, {
+                            method: 'POST',
+                            body: JSON.stringify(dto)
+                        }, submitButton);
+                        
+                        App.ui.showToast('Categoría creada con éxito');
+                        form.reset();
+                        document.getElementById('new-options-container').innerHTML = '';
+                        App.components.Opciones.init(); // Recargamos la lista
+                    } catch (error) { /* Manejado en App.api */ }
+                },
+                
+                renderAsignacion(categorias, producto) {
+                    const container = document.getElementById('product-options-assignment');
+                    if (!container) return;
+                    
+                    if(categorias.length === 0) {
+                         container.innerHTML = `<p class="text-xs text-slate-400">No hay opciones creadas. Ve a Mi Tienda > Gestionar Opciones.</p>`;
+                         return;
+                    }
+                    
+                    const idsCategoriasAsignadas = (producto && producto.categoriasDeOpciones) ? producto.categoriasDeOpciones.map(c => c.id) : [];
+
+                    container.innerHTML = `<p class="font-semibold mb-2">Asignar Opciones a este Producto:</p>` + categorias.map(cat => `
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="categoriasAsignadas" value="${cat.id}" ${idsCategoriasAsignadas.includes(cat.id) ? 'checked' : ''}>
+                            <span>${cat.nombre}</span>
+                        </label>
+                    `).join('');
+                }
+            },
+
         },
+
+       
 
         async init() {
             if (!this.config.container) {

@@ -1,267 +1,389 @@
 /**
  * @file Script principal para la App de Compradores de Uni-Eats.
- * @description Gestiona la renderización, lógica y comunicación con el API.
- * @version 2.0 (Diseño Pro y Ciclo de Compra Completo)
+ * @description Gestiona las vistas, el estado y la lógica de la PWA del comprador.
+ * @version Pro Final 2.0 (Flujo de Compra Detallado)
  */
 document.addEventListener("DOMContentLoaded", () => {
-    const appContainer = document.getElementById("app-container");
+    
+    // --- Módulos Principales de la Aplicación ---
+    const Header = document.getElementById('app-header');
+    const Container = document.getElementById('app-container');
+    const Nav = document.getElementById('app-nav');
 
-    const App = {
-        state: {
-            carrito: [],
-            tiendaActual: null,
-            vistaActual: 'listaTiendas', // 'listaTiendas', 'detalleTienda', 'carrito'
-            csrfToken: document.querySelector("meta[name='_csrf']")?.getAttribute("content"),
-            csrfHeader: document.querySelector("meta[name='_csrf_header']")?.getAttribute("content"),
-        },
-
-        // --- NÚCLEO DE LA APP ---
-        async init() {
-            // Usamos delegación de eventos en el contenedor principal para manejar todos los clics
-            appContainer.addEventListener('click', (e) => this.handleGlobalClick(e));
-            this.navigate('listaTiendas');
-        },
-
-        async navigate(view, params = null) {
-            this.state.vistaActual = view;
-            Views.renderLoading();
-            try {
-                switch (view) {
-                    case 'listaTiendas':
-                        const tiendas = await Api.getTiendas();
-                        Views.renderStoreList(tiendas);
-                        break;
-                    case 'detalleTienda':
-                        const tienda = await Api.getTiendaDetalle(params.id);
-                        this.state.tiendaActual = tienda;
-                        Views.renderStoreDetail(tienda);
-                        break;
-                    case 'carrito':
-                        Views.renderCartView();
-                        break;
-                }
-            } catch (error) {
-                Views.renderError(error.message);
-            }
-        },
-
-        handleGlobalClick(e) {
-            const tiendaCard = e.target.closest('[data-action="ver-tienda"]');
-            const addToCartBtn = e.target.closest('[data-action="add-to-cart"]');
-            const verCarritoBtn = e.target.closest('[data-action="ver-carrito"]');
-            const cartActionBtn = e.target.closest('[data-cart-action]');
-            const realizarPedidoBtn = e.target.closest('[data-action="realizar-pedido"]');
-
-            if (tiendaCard) this.navigate('detalleTienda', { id: tiendaCard.dataset.id });
-            if (verCarritoBtn) this.navigate('carrito');
-            if (realizarPedidoBtn) this.enviarPedido();
-            
-            if (addToCartBtn) {
-                const productoCard = addToCartBtn.closest('.producto-card');
-                this.agregarAlCarrito(productoCard.dataset);
-            }
-            if (cartActionBtn) {
-                this.actualizarCantidadCarrito(cartActionBtn.dataset.cartAction, parseInt(cartActionBtn.dataset.id));
-            }
-        },
-
-        // --- LÓGICA DEL CARRITO ---
-        agregarAlCarrito(productoData) {
-            const productoId = parseInt(productoData.productId);
-
-            // Regla: No se puede añadir de otra tienda sin vaciar el carrito
-            if (this.state.carrito.length > 0 && this.state.carrito[0].tiendaId !== this.state.tiendaActual.id) {
-                Toast.show("Solo puedes pedir de una tienda a la vez.", "error");
-                return;
-            }
-
-            let item = this.state.carrito.find(p => p.id === productoId);
-            if (item) {
-                item.cantidad++;
-            } else {
-                this.state.carrito.push({
-                    id: productoId,
-                    nombre: productoData.productNombre,
-                    precio: parseFloat(productoData.productPrecio),
-                    cantidad: 1,
-                    tiendaId: this.state.tiendaActual.id
-                });
-            }
-            Toast.show(`"${productoData.productNombre}" añadido al carrito.`, 'success');
-            Views.renderFloatingCartButton();
-        },
-
-        actualizarCantidadCarrito(action, productoId) {
-            let item = this.state.carrito.find(p => p.id === productoId);
-            if (!item) return;
-
-            if (action === 'increase') {
-                item.cantidad++;
-            } else if (action === 'decrease') {
-                item.cantidad--;
-                if (item.cantidad === 0) {
-                    this.state.carrito = this.state.carrito.filter(p => p.id !== productoId);
-                }
-            }
-            this.navigate('carrito'); // Re-renderiza la vista del carrito
-        },
-        
-        async enviarPedido() {
-            const boton = document.querySelector('[data-action="realizar-pedido"]');
-            boton.disabled = true;
-            boton.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...`;
-
-            const pedidoDTO = {
-                tiendaId: this.state.tiendaActual.id,
-                items: this.state.carrito.map(item => ({ id: item.id, cantidad: item.cantidad }))
-            };
-
-            try {
-                await Api.crearPedido(pedidoDTO);
-                Toast.show("¡Pedido realizado con éxito!", 'success');
-                this.state.carrito = [];
-                this.navigate('listaTiendas');
-            } catch (error) {
-                Toast.show(`Error: ${error.message}`, 'error');
-                boton.disabled = false;
-                boton.innerHTML = 'Reintentar Pedido';
-            }
-        }
+    // Estado global de la aplicación
+    const State = {
+        vistaActual: null,
+        tiendaActual: null,
+        productoSeleccionado: null,
+        carrito: [],
+        csrfToken: document.querySelector("meta[name='_csrf']")?.getAttribute("content"),
+        csrfHeader: document.querySelector("meta[name='_csrf_header']")?.getAttribute("content"),
     };
 
-    // --- MÓDULO DE API (Llamadas al Backend) ---
+    // Módulo para todas las interacciones con el backend
     const Api = {
         _fetch: async (url, options = {}) => {
             const headers = { 'Content-Type': 'application/json', ...options.headers };
             if (options.method === 'POST') {
-                headers[App.state.csrfHeader] = App.state.csrfToken;
+                headers[State.csrfHeader] = State.csrfToken;
             }
             const response = await fetch(url, { ...options, headers });
-            if (!response.ok) throw new Error(await response.text());
-            return response.json();
+            if (!response.ok) {
+                const errorMsg = await response.text();
+                throw new Error(errorMsg || 'Error de red o del servidor.');
+            }
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                return response.json();
+            }
+            return response.text(); 
         },
         getTiendas: () => Api._fetch('/api/marketplace/tiendas'),
-        getTiendaDetalle: (id) => Api._fetch(`/api/marketplace/tiendas/${id}`),
-        crearPedido: (dto) => Api._fetch('/api/pedidos/crear', { method: 'POST', body: JSON.stringify(dto) })
+        getProductos: () => Api._fetch('/api/marketplace/productos'),
+        getProductoDetalle: (id) => Api._fetch(`/api/marketplace/productos/${id}`),
+        getMisPedidos: () => Api._fetch('/api/pedidos/mis-pedidos'),
+        crearPedido: (dto) => Api._fetch('/api/pedidos/crear', { method: 'POST', body: JSON.stringify(dto) }),
     };
 
-    // --- MÓDULO DE VISTAS (Todo el HTML) ---
+    // Módulo para renderizar todas las vistas y componentes
     const Views = {
-        formatPrice: (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price),
-
-        renderLoading: () => { appContainer.innerHTML = `<div class="flex justify-center items-center h-screen"><i class="fas fa-spinner fa-spin text-4xl text-indigo-500"></i></div>`; },
-        renderError: (msg) => { appContainer.innerHTML = `<div class="p-8 text-center text-red-600"><p><strong>Error:</strong> ${msg}</p></div>`; },
-
-        renderStoreList(tiendas) {
-            Views.renderFloatingCartButton(true); // Ocultar el botón
-            const tiendasHtml = tiendas.map(tienda => `
-                <div class="bg-white rounded-2xl shadow-lg m-4 overflow-hidden cursor-pointer transition-transform hover:scale-105" data-action="ver-tienda" data-id="${tienda.id}">
-                    <div class="h-40 bg-cover bg-center" style="background-image: url('${tienda.logoUrl || 'https://via.placeholder.com/400x200'}')"></div>
-                    <div class="p-4">
-                        <h2 class="font-bold text-xl text-slate-800">${tienda.nombre}</h2>
-                        <p class="text-slate-600 text-sm mt-1 line-clamp-2">${tienda.descripcion}</p>
-                    </div>
-                </div>`).join('');
-            appContainer.innerHTML = `
-                <header class="p-4 sticky top-0 bg-slate-50/80 backdrop-blur-md z-10">
-                    <h1 class="text-3xl font-bold text-slate-900">Uni-Eats</h1>
-                    <p class="text-slate-500">Pide de las mejores tiendas.</p>
-                </header>
-                <div class="grid grid-cols-1 md:grid-cols-2">${tiendasHtml}</div>`;
+        formatPrice: (price, sign = true) => {
+            if (price === 0 && sign) return 'Gratis';
+            const prefix = sign && price > 0 ? '+ ' : '';
+            return prefix + new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
         },
 
-        renderStoreDetail(tienda) {
-            const productosHtml = tienda.productos.map(p => `
-                <div class="producto-card" data-product-id="${p.id}" data-product-nombre="${p.nombre}" data-product-precio="${p.precio}">
-                    <div class="flex-grow">
-                        <h3 class="font-semibold text-slate-800">${p.nombre}</h3>
-                        <p class="text-sm text-slate-500">${p.descripcion || ''}</p>
-                        <p class="font-bold text-indigo-600 mt-1">${this.formatPrice(p.precio)}</p>
-                    </div>
-                    <img src="${p.imagenUrl || 'https://via.placeholder.com/150'}" alt="${p.nombre}" class="w-24 h-24 rounded-lg object-cover">
-                    <button class="add-to-cart-btn" data-action="add-to-cart"><i class="fas fa-plus"></i></button>
-                </div>`).join('');
-            appContainer.innerHTML = `
-                <header class="p-4">
-                    <button class="text-indigo-600 font-semibold mb-4" data-action="ver-tienda" data-id=""><i class="fas fa-arrow-left mr-2"></i>Volver a tiendas</button>
-                    <div class="flex items-center gap-4">
-                        <img src="${tienda.logoUrl || 'https://via.placeholder.com/150'}" alt="Logo" class="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg">
-                        <div>
-                            <h1 class="text-3xl font-bold text-slate-900">${tienda.nombre}</h1>
-                            <p class="text-slate-500">${tienda.descripcion}</p>
-                        </div>
-                    </div>
-                </header>
-                <div class="p-4 space-y-3">${productosHtml}</div>`;
-            Views.renderFloatingCartButton();
+        async render(view, params = null) {
+            State.vistaActual = view;
+            this.updateNav();
+            this.renderSkeleton(view);
+
+            try {
+                switch (view) {
+                    case 'inicio':
+                        Header.innerHTML = this.getHeaderHTML('inicio');
+                        const productos = await Api.getProductos();
+                        Container.innerHTML = this.getFeedProductosHTML(productos);
+                        break;
+                    case 'tiendas':
+                        Header.innerHTML = this.getHeaderHTML('tiendas');
+                        const tiendas = await Api.getTiendas();
+                        Container.innerHTML = this.getListaTiendasHTML(tiendas);
+                        break;
+                    case 'perfil':
+                        Header.innerHTML = this.getHeaderHTML('perfil');
+                        Container.innerHTML = this.getPerfilHTML();
+                        break;
+                    case 'detalleProducto':
+                        const producto = await Api.getProductoDetalle(params.id);
+                        State.productoSeleccionado = producto;
+                        Header.innerHTML = this.getHeaderHTML('detalleProducto', producto);
+                        Container.innerHTML = this.getDetalleProductoHTML(producto);
+                        this.updateTotalProducto();
+                        break;
+                    case 'carrito':
+                        Header.innerHTML = this.getHeaderHTML('carrito');
+                        Container.innerHTML = this.getCarritoHTML();
+                        this.renderFloatingCartButton(true);
+                        break;
+                    case 'misPedidos':
+                        Header.innerHTML = this.getHeaderHTML('misPedidos');
+                        const pedidos = await Api.getMisPedidos();
+                        Container.innerHTML = this.getMisPedidosHTML(pedidos);
+                        break;
+                }
+            } catch (error) {
+                Container.innerHTML = `<div class="p-4 text-center text-red-500">${error.message}</div>`;
+            }
         },
 
-        renderCartView() {
-            Views.renderFloatingCartButton(true); // Ocultar el botón
-            if (App.state.carrito.length === 0) {
-                appContainer.innerHTML = `<div class="p-4"><button class="text-indigo-600 font-semibold mb-4" data-action="ver-tienda" data-id="${App.state.tiendaActual.id}"><i class="fas fa-arrow-left mr-2"></i>Volver a la tienda</button><div class="text-center p-10"><i class="fas fa-shopping-cart text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">Tu carrito está vacío.</p></div></div>`;
-                return;
+        renderSkeleton(view) {
+            let skeletonCard = '';
+            let layout = 'grid grid-cols-2 gap-4';
+            if (view === 'tiendas' || view === 'misPedidos') {
+                skeletonCard = `<div class="w-full h-24 skeleton rounded-lg"></div>`;
+                layout = 'space-y-3';
+            } else {
+                skeletonCard = `<div class="space-y-3"><div class="h-24 skeleton rounded-lg"></div><div class="h-4 w-3/4 skeleton rounded"></div><div class="h-3 w-1/2 skeleton rounded"></div></div>`;
+            }
+            Container.innerHTML = `<div class="${layout}">${skeletonCard.repeat(6)}</div>`;
+        },
+        
+        getHeaderHTML(view, data = {}) {
+            let backViewTarget = 'inicio';
+            if (view === 'carrito') {
+                backViewTarget = `detalleProducto`;
+            } else if (State.tiendaActual && view === 'detalleProducto') {
+                backViewTarget = 'tiendas';
             }
             
-            const total = App.state.carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-            const itemsHtml = App.state.carrito.map(item => `
-                <div class="flex items-center gap-4 py-4 border-b">
-                    <div class="flex-grow">
-                        <p class="font-semibold">${item.nombre}</p>
-                        <p class="text-sm text-slate-500">${this.formatPrice(item.precio)}</p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <button class="cart-qty-btn" data-cart-action="decrease" data-id="${item.id}">-</button>
-                        <span class="font-bold w-5 text-center">${item.cantidad}</span>
-                        <button class="cart-qty-btn" data-cart-action="increase" data-id="${item.id}">+</button>
-                    </div>
-                    <p class="font-semibold w-20 text-right">${this.formatPrice(item.precio * item.cantidad)}</p>
-                </div>`).join('');
-
-            appContainer.innerHTML = `
-                <header class="p-4">
-                    <button class="text-indigo-600 font-semibold mb-4" data-action="ver-tienda" data-id="${App.state.tiendaActual.id}"><i class="fas fa-arrow-left mr-2"></i>Volver a la tienda</button>
-                    <h1 class="text-3xl font-bold text-slate-900">Tu Pedido</h1>
-                </header>
-                <div class="p-4">${itemsHtml}</div>
-                <div class="p-4 mt-4 bg-white rounded-t-2xl shadow-inner-top">
-                    <div class="flex justify-between items-center text-xl font-bold">
-                        <span>Total:</span>
-                        <span>${this.formatPrice(total)}</span>
-                    </div>
-                    <button class="w-full mt-4 bg-green-500 text-white font-bold py-4 rounded-xl text-lg" data-action="realizar-pedido">Confirmar Pedido</button>
-                </div>`;
+            switch (view) {
+                case 'inicio': return `<div class="relative"><input type="search" placeholder="Busca tu antojo..." class="w-full bg-slate-200 border-none rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"><i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i></div>`;
+                case 'tiendas': return `<h1 class="text-xl font-bold text-slate-800">Todas las Tiendas</h1>`;
+                case 'perfil': return `<h1 class="text-xl font-bold text-slate-800">Mi Perfil</h1>`;
+                case 'carrito': return `<div class="flex items-center gap-3"><button class="nav-back-btn" data-action="navigate" data-view="tiendas" data-id="${State.tiendaActual?.id}"><i class="fas fa-arrow-left"></i></button><h1 class="text-xl font-bold text-slate-800">Tu Pedido</h1></div>`;
+                case 'misPedidos': return `<div class="flex items-center gap-3"><button class="nav-back-btn" data-action="navigate" data-view="perfil"><i class="fas fa-arrow-left"></i></button><h1 class="text-xl font-bold text-slate-800">Mis Pedidos</h1></div>`;
+                case 'detalleProducto': return `<div class="flex items-center gap-3"><button class="nav-back-btn" data-action="navigate" data-view="${backViewTarget}" data-id="${State.tiendaActual?.id}"><i class="fas fa-arrow-left"></i></button><h1 class="text-xl font-bold text-slate-800 truncate">${data.nombre}</h1></div>`;
+                default: return '';
+            }
         },
 
-        renderFloatingCartButton(hide = false) {
+        getFeedProductosHTML(productos) {
+            if (!productos || productos.length === 0) return `<div class="text-center p-10"><i class="fas fa-box-open text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">No hay productos disponibles.</p></div>`;
+            const categorias = { "Novedades para ti": productos };
+            let html = '';
+            for (const [nombreCat, prodsCat] of Object.entries(categorias)) {
+                html += `<h2 class="text-lg font-bold text-slate-700 mt-4 mb-2">${nombreCat}</h2><div class="grid grid-cols-2 gap-4">
+                    ${prodsCat.map(p => `
+                        <div class="bg-white rounded-lg shadow-sm overflow-hidden cursor-pointer" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
+                            <img src="${p.imagenUrl || 'https://via.placeholder.com/300'}" class="w-full h-24 object-cover">
+                            <div class="p-3"><h3 class="font-semibold text-sm text-slate-800 truncate">${p.nombre}</h3><p class="text-xs text-slate-500">${p.tienda.nombre}</p><p class="font-bold text-indigo-600 mt-1">${this.formatPrice(p.precio, false)}</p></div>
+                        </div>`).join('')}
+                </div>`;
+            }
+            return html;
+        },
+
+        getListaTiendasHTML(tiendas) {
+            return tiendas.map(tienda => `
+                <div class="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm mb-3 cursor-pointer" data-action="navigate" data-view="tiendas" data-id="${tienda.id}">
+                    <img src="${tienda.logoUrl}" class="w-16 h-16 rounded-full object-cover">
+                    <div class="flex-grow"><h3 class="font-bold text-slate-800">${tienda.nombre}</h3><p class="text-sm text-slate-500 line-clamp-2">${tienda.descripcion}</p></div>
+                    <i class="fas fa-chevron-right text-slate-300"></i>
+                </div>`).join('');
+        },
+
+        getDetalleProductoHTML(producto) {
+            let opcionesHtml = producto.categoriasDeOpciones.map(cat => `
+                <div class="mt-6 mb-4"><h3 class="font-bold text-lg mb-2">${cat.nombre}</h3><div class="space-y-2">
+                    ${cat.opciones.map(op => `
+                        <label class="flex items-center bg-white p-3 rounded-lg shadow-sm">
+                            <input type="checkbox" class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500" name="${cat.id}" value="${op.id}" data-precio="${op.precioAdicional}" data-nombre="${op.nombre}">
+                            <span class="ml-3 text-slate-700">${op.nombre}</span><span class="ml-auto font-semibold text-slate-500">${this.formatPrice(op.precioAdicional)}</span>
+                        </label>`).join('')}
+                </div></div>`).join('');
+
+            return `<div class="bg-white rounded-t-2xl shadow-lg -m-4">
+                        <img src="${producto.imagenUrl || 'https://via.placeholder.com/400x200'}" class="w-full h-48 object-cover rounded-t-2xl">
+                        <div class="p-4"><h2 class="font-bold text-2xl">${producto.nombre}</h2><p class="text-slate-600 mt-1">${producto.descripcion}</p></div>
+                    </div>
+                    <div class="p-4">${opcionesHtml}</div>
+                    <div class="sticky bottom-0 bg-white/80 backdrop-blur-md p-3 shadow-inner-top -mx-4 -mb-4 rounded-t-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                             <div class="flex items-center gap-3"><button class="qty-btn" data-action="update-qty" data-op="-1">-</button><span id="item-qty" class="font-bold text-xl w-5 text-center">1</span><button class="qty-btn" data-action="update-qty" data-op="1">+</button></div>
+                            <span id="total-producto" class="font-bold text-xl text-indigo-600">${this.formatPrice(producto.precio, false)}</span>
+                        </div>
+                        <button class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl" data-action="add-custom-to-cart">Añadir al Pedido</button>
+                    </div>`;
+        },
+
+        getCarritoHTML() {
+            if (State.carrito.length === 0) return `<div class="text-center p-10"><i class="fas fa-shopping-cart text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">Tu carrito está vacío.</p><button class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg" data-action="navigate" data-view="inicio">Volver al inicio</button></div>`;
+            
+            const total = State.carrito.reduce((sum, item) => sum + item.precioFinal * item.cantidad, 0);
+            const itemsHtml = State.carrito.map((item, index) => `
+                <div class="flex items-start gap-4 py-4 border-b">
+                    <div class="flex-grow">
+                        <p class="font-bold">${item.cantidad}x ${item.nombre}</p>
+                        ${item.opciones.map(op => `<p class="text-xs text-slate-500">+ ${op.nombre}</p>`).join('')}
+                    </div>
+                    <p class="font-semibold w-24 text-right">${this.formatPrice(item.precioFinal * item.cantidad, false)}</p>
+                    <button class="text-red-500 hover:text-red-700" data-action="remove-from-cart" data-index="${index}"><i class="fas fa-trash"></i></button>
+                </div>`).join('');
+
+            return `<div class="bg-white rounded-lg shadow-sm p-4">${itemsHtml}
+                        <div class="flex justify-between items-center text-xl font-bold mt-4"><span>Total:</span><span>${this.formatPrice(total, false)}</span></div>
+                    </div>
+                    <p class="text-xs text-slate-500 text-center my-4">Estás pidiendo de: <strong>${State.tiendaActual.nombre}</strong></p>
+                    <button class="w-full mt-2 bg-green-500 text-white font-bold py-4 rounded-xl text-lg" data-action="checkout">Confirmar Pedido</button>`;
+        },
+
+        getPerfilHTML() {
+            return `<div class="bg-white rounded-lg shadow-sm">
+                        <a href="#" class="profile-link" data-action="navigate" data-view="misPedidos"><i class="fas fa-receipt profile-icon text-indigo-500"></i><span class="font-semibold">Mis Pedidos</span><i class="fas fa-chevron-right text-slate-300 ml-auto"></i></a>
+                        <form action="/logout" method="post"><input type="hidden" name="${State.csrfHeader}" value="${State.csrfToken}"><button type="submit" class="profile-link w-full text-left text-red-500"><i class="fas fa-sign-out-alt profile-icon"></i><span class="font-semibold">Cerrar Sesión</span></button></form>
+                    </div>`;
+        },
+
+        getMisPedidosHTML(pedidos) {
+            if (!pedidos || pedidos.length === 0) return `<div class="text-center p-10"><i class="fas fa-box-open text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">Aún no has realizado pedidos.</p></div>`;
+            
+            const statusConfig = {
+                'PENDIENTE': { text: 'En espera de aprobación', icon: 'fa-hourglass-start', color: 'text-amber-500' },
+                'EN_PREPARACION': { text: 'Pedido en preparación', icon: 'fa-utensils', color: 'text-blue-500' },
+                'LISTO_PARA_RECOGER': { text: '¡Listo para recoger!', icon: 'fa-shopping-bag', color: 'text-green-500' },
+                'COMPLETADO': { text: 'Entregado', icon: 'fa-check-circle', color: 'text-gray-500' },
+                'CANCELADO': { text: 'Cancelado', icon: 'fa-times-circle', color: 'text-red-500' }
+            };
+
+            return pedidos.map(pedido => {
+                const currentStatus = statusConfig[pedido.estado] || {};
+                return `
+                <div class="bg-white rounded-xl shadow-sm p-4 mb-4 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <div><p class="font-bold text-slate-800">${pedido.nombreTienda}</p><p class="text-xs text-slate-500">Pedido #${pedido.id} &bull; ${new Date(pedido.fechaCreacion).toLocaleDateString()}</p></div>
+                        <p class="font-bold text-lg">${this.formatPrice(pedido.total, false)}</p>
+                    </div>
+                    <div class="border-t pt-3">
+                        <p class="font-semibold text-md ${currentStatus.color} flex items-center gap-2"><i class="fas ${currentStatus.icon}"></i><span>${currentStatus.text}</span></p>
+                        <div class="flex justify-between text-xs text-center mt-2">
+                            <div class="w-1/4 ${pedido.estado === 'PENDIENTE' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-receipt"></i><p>Pedido</p></div>
+                            <div class="w-1/4 ${pedido.estado === 'EN_PREPARACION' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-utensils"></i><p>Preparando</p></div>
+                            <div class="w-1/4 ${pedido.estado === 'LISTO_PARA_RECOGER' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-shopping-bag"></i><p>Listo</p></div>
+                            <div class="w-1/4 ${pedido.estado === 'COMPLETADO' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-check"></i><p>Entregado</p></div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        },
+
+        updateTotalProducto() {
+            const totalElement = document.getElementById('total-producto');
+            const qtyElement = document.getElementById('item-qty');
+            if (!totalElement || !qtyElement) return;
+            let precioOpciones = 0;
+            document.querySelectorAll('input[type="checkbox"]:checked').forEach(c => { precioOpciones += parseFloat(c.dataset.precio); });
+            const cantidad = parseInt(qtyElement.textContent);
+            const total = (State.productoSeleccionado.precio + precioOpciones) * cantidad;
+            totalElement.textContent = this.formatPrice(total, false);
+        },
+
+        renderFloatingCartButton() {
             let boton = document.getElementById('floating-cart-btn');
-            if (hide || App.state.carrito.length === 0) {
+            if (State.carrito.length === 0) {
                 boton?.remove();
                 return;
             }
-            const totalItems = App.state.carrito.reduce((sum, item) => sum + item.cantidad, 0);
+            const totalItems = State.carrito.reduce((sum, item) => sum + item.cantidad, 0);
             if (boton) {
                 boton.querySelector('span').textContent = totalItems;
             } else {
                 boton = document.createElement('div');
                 boton.id = 'floating-cart-btn';
-                boton.className = 'fixed bottom-5 right-5 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center h-16 w-16 cursor-pointer z-50 animate-pop-in';
+                boton.className = 'fixed bottom-24 right-5 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center h-16 w-16 cursor-pointer z-50 animate-pop-in';
                 boton.innerHTML = `<i class="fas fa-shopping-bag text-2xl"></i><span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">${totalItems}</span>`;
-                boton.dataset.action = 'ver-carrito';
+                boton.dataset.action = 'navigate';
+                boton.dataset.view = 'carrito';
                 document.body.appendChild(boton);
-                appContainer.appendChild(boton); // Adjuntar al contenedor para que el event listener global lo capture
+            }
+        },
+
+        updateNav() {
+            Nav.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.toggle('active', link.dataset.view === State.vistaActual);
+            });
+        }
+    };
+    
+    const AppController = {
+        init() {
+            document.body.addEventListener('click', e => {
+                const target = e.target.closest('[data-action]');
+                if (!target) {
+                    if (e.target.matches('input[type="checkbox"]')) Views.updateTotalProducto();
+                    return;
+                }
+                e.preventDefault();
+                const { action, view, id, op, index } = target.dataset;
+
+                switch(action) {
+                    case 'navigate': Views.render(view, { id }); break;
+                    case 'add-custom-to-cart': this.agregarProductoPersonalizado(); break;
+                    case 'update-qty': this.actualizarCantidadProducto(parseInt(op)); break;
+                    case 'remove-from-cart': this.removerDelCarrito(parseInt(index)); break;
+                    case 'checkout': this.enviarPedido(); break;
+                }
+            });
+            Nav.addEventListener('click', e => {
+                const navLink = e.target.closest('.nav-link');
+                if (navLink) { e.preventDefault(); Views.render(navLink.dataset.view); }
+            });
+            Views.render('inicio');
+        },
+
+        actualizarCantidadProducto(operacion) {
+            const qtyElement = document.getElementById('item-qty');
+            if (!qtyElement) return;
+            let cantidad = parseInt(qtyElement.textContent);
+            cantidad += operacion;
+            if (cantidad < 1) cantidad = 1;
+            qtyElement.textContent = cantidad;
+            Views.updateTotalProducto();
+        },
+
+        agregarProductoPersonalizado() {
+            const productoBase = State.productoSeleccionado;
+            if (State.carrito.length > 0 && State.carrito[0].tiendaId !== productoBase.tienda.id) {
+                Toast.show("Solo puedes pedir de esta tienda.", "error");
+                return;
+            }
+
+            let precioOpciones = 0;
+            const opcionesSeleccionadas = [];
+            document.querySelectorAll('input[type="checkbox"]:checked').forEach(c => {
+                precioOpciones += parseFloat(c.dataset.precio);
+                opcionesSeleccionadas.push({ id: parseInt(c.value), nombre: c.dataset.nombre, precio: parseFloat(c.dataset.precio) });
+            });
+            const cantidad = parseInt(document.getElementById('item-qty').textContent);
+
+            State.carrito.push({
+                productoId: productoBase.id, // ID del producto base
+                nombre: productoBase.nombre,
+                precioUnitario: productoBase.precio + precioOpciones,
+                precioFinal: (productoBase.precio + precioOpciones) * cantidad,
+                cantidad: cantidad,
+                opciones: opcionesSeleccionadas,
+                tiendaId: productoBase.tienda.id
+            });
+            
+            State.tiendaActual = { id: productoBase.tienda.id, nombre: productoBase.tienda.nombre };
+            Toast.show(`${cantidad}x "${productoBase.nombre}" añadido.`, 'success');
+            Views.renderFloatingCartButton();
+            Views.render('tiendas');
+        },
+
+        removerDelCarrito(index) {
+            State.carrito.splice(index, 1);
+            if(State.carrito.length === 0) State.tiendaActual = null;
+            Views.render('carrito');
+        },
+        
+        async enviarPedido() {
+            const boton = document.querySelector('[data-action="checkout"]');
+            boton.disabled = true;
+            boton.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...`;
+            
+            const dto = {
+                tiendaId: State.tiendaActual.id,
+                items: State.carrito.map(item => ({
+                    id: item.productoId,
+                    cantidad: item.cantidad,
+                    opcionesIds: item.opciones.map(op => op.id)
+                }))
+            };
+
+            try {
+                await Api.crearPedido(dto);
+                Toast.show("¡Pedido realizado con éxito!", 'success');
+                State.carrito = [];
+                State.tiendaActual = null;
+                Views.renderFloatingCartButton();
+                Views.render('misPedidos');
+            } catch (error) {
+                Toast.show(`Error: ${error.message}`, 'error');
+                boton.disabled = false;
+                boton.innerHTML = 'Confirmar Pedido';
             }
         }
     };
 
-    // --- MÓDULO DE TOASTS (Notificaciones) ---
     const Toast = {
         show(message, type = 'success') {
             const icons = { success: 'fa-check-circle', error: 'fa-times-circle' };
-            const colors = { success: 'bg-green-500', error: 'bg-red-500' };
+            const colors = { success: 'from-green-500 to-green-600', error: 'from-red-500 to-red-600' };
             const toast = document.createElement('div');
-            toast.className = `fixed top-5 left-1/2 -translate-x-1/2 ${colors[type]} text-white py-3 px-5 rounded-lg shadow-xl flex items-center gap-3 z-50 animate-slide-down`;
-            toast.innerHTML = `<i class="fas ${icons[type]}"></i><p>${message}</p>`;
+            toast.className = `fixed top-5 left-1/2 -translate-x-1/2 bg-gradient-to-r ${colors[type]} text-white py-3 px-6 rounded-full shadow-lg flex items-center gap-3 z-50 animate-slide-down`;
+            toast.innerHTML = `<i class="fas ${icons[type]}"></i><p class="font-semibold">${message}</p>`;
             document.body.appendChild(toast);
             setTimeout(() => {
                 toast.classList.add('animate-fade-out');
@@ -270,5 +392,5 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    App.init();
+    AppController.init();
 });

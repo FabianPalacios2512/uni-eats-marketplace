@@ -32,7 +32,19 @@ document.addEventListener('DOMContentLoaded', () => {
             productos: [],
             horarios: [],
             categorias: [],
-            fabButton: null
+            fabButton: null,
+            currentView: 'pedidos', // Track current view
+            productViewMode: 'compact', // 'compact' or 'cards'
+            pedidosPolling: null, // Polling interval for pedidos
+            lastPedidosCount: 0, // Track number of pedidos for notifications
+            isPollingActive: false, // Track polling state
+            lastPedidosHash: null, // Hash of last pedidos data to detect real changes
+            currentPedidos: [], // Store current pedidos for comparison
+            pollingInterval: 10000, // Start with 10 seconds (fast)
+            maxPollingInterval: 30000, // Max 30 seconds (slow)
+            minPollingInterval: 5000, // Min 5 seconds (very fast)
+            consecutiveNoChanges: 0, // Counter for no changes
+            lastActivityTime: Date.now() // Track last activity
         },
 
         api: {
@@ -73,15 +85,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showToast(message, type = 'success') {
                 const toast = document.createElement('div');
-                const icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle' };
-                const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+                const icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
+                const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-amber-500' };
                 toast.className = `fixed bottom-24 right-5 ${colors[type]} text-white py-3 px-5 rounded-lg shadow-xl flex items-center gap-3 animate-fadeIn z-50`;
                 toast.innerHTML = `<i class="fas ${icons[type]}"></i><p>${message}</p>`;
                 document.body.appendChild(toast);
                 setTimeout(() => {
                     toast.classList.add('animate-fadeOut');
                     toast.addEventListener('animationend', () => toast.remove());
-                }, 3000);
+                }, 1000);
+            },
+
+            showNewOrderNotification(pedidosCount) {
+                // Only show notification if there are actually new orders
+                if (pedidosCount > App.state.lastPedidosCount && App.state.lastPedidosCount > 0) {
+                    const newOrdersCount = pedidosCount - App.state.lastPedidosCount;
+                    this.showToast(`🆕 ${newOrdersCount} nuevo${newOrdersCount > 1 ? 's' : ''} pedido${newOrdersCount > 1 ? 's' : ''}`, 'info');
+                    
+                    // Add visual indicator to Pedidos tab if not currently viewing it
+                    if (App.state.currentView !== 'pedidos') {
+                        const pedidosTab = document.querySelector('.nav-link[data-target="pedidos"]');
+                        if (pedidosTab && !pedidosTab.querySelector('.notification-dot')) {
+                            const dot = document.createElement('div');
+                            dot.className = 'notification-dot absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-bounce';
+                            pedidosTab.style.position = 'relative';
+                            pedidosTab.appendChild(dot);
+                        }
+                    }
+                }
+                App.state.lastPedidosCount = pedidosCount;
+            },
+
+            // Generate a simple hash from pedidos data to detect real changes
+            generatePedidosHash(pedidos) {
+                if (!pedidos || pedidos.length === 0) return 'empty';
+                
+                // Create a hash based on: ID + Estado + Total of each pedido
+                const hashString = pedidos.map(p => `${p.id}-${p.estado}-${p.total}`).join('|');
+                
+                // Simple hash function
+                let hash = 0;
+                for (let i = 0; i < hashString.length; i++) {
+                    const char = hashString.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32-bit integer
+                }
+                return hash.toString();
+            },
+
+            checkForPedidosChanges(newPedidos) {
+                const newHash = this.generatePedidosHash(newPedidos);
+                const hasChanges = App.state.lastPedidosHash !== newHash;
+                
+                if (hasChanges) {
+                    console.log('🔄 Cambios detectados en pedidos, actualizando UI...');
+                    App.state.lastPedidosHash = newHash;
+                    App.state.currentPedidos = newPedidos;
+                    return true;
+                } else {
+                    console.log('✅ No hay cambios en pedidos, manteniendo UI actual');
+                    return false;
+                }
             },
 
             switchView(targetId) {
@@ -95,6 +159,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (activeLink) activeLink.classList.add('active');
                 if (App.state.fabButton) {
                     App.state.fabButton.style.display = (targetId === 'productos') ? 'flex' : 'none';
+                }
+                
+                // Save current view to localStorage
+                App.state.currentView = targetId;
+                localStorage.setItem('vendedor-current-view', targetId);
+
+                // Manage real-time polling based on current view
+                if (targetId === 'pedidos') {
+                    App.components.Pedidos.startPolling();
+                } else {
+                    App.components.Pedidos.stopPolling();
                 }
             },
             
@@ -201,7 +276,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.querySelectorAll('.nav-link').forEach(link => {
                         link.addEventListener('click', (e) => { e.preventDefault(); App.ui.switchView(link.dataset.target); });
                     });
-                    App.ui.switchView('pedidos'); // Iniciar en la vista de pedidos
+                    
+                    // Restore last view or default to 'pedidos'
+                    const savedView = localStorage.getItem('vendedor-current-view') || 'pedidos';
+                    App.ui.switchView(savedView);
+
+                    // Initialize real-time updates if starting on pedidos view
+                    if (savedView === 'pedidos') {
+                        App.components.Pedidos.startPolling();
+                    }
                 }
             },
             
@@ -258,13 +341,116 @@ document.addEventListener('DOMContentLoaded', () => {
                     container.removeEventListener('click', this.handlePedidoAction);
                     container.addEventListener('click', this.handlePedidoAction);
 
+                    await this.loadPedidos();
+                },
+
+                async loadPedidos() {
+                    const container = document.getElementById('pedidos-container');
+                    if (!container) return;
+
                     try {
                         const response = await fetch(App.config.apiEndpoints.getPedidos);
                         if (!response.ok) throw new Error('No se pudieron cargar los pedidos.');
                         const pedidos = await response.json();
-                        this.renderPedidos(pedidos, container);
+                        
+                        // Check if there are actual changes before updating UI
+                        const hasChanges = App.ui.checkForPedidosChanges(pedidos);
+                        
+                        if (hasChanges) {
+                            // Reset counter and speed up polling when there are changes
+                            App.state.consecutiveNoChanges = 0;
+                            App.state.lastActivityTime = Date.now();
+                            this.adjustPollingSpeed(true);
+                            
+                            // Check for new orders and show notification
+                            App.ui.showNewOrderNotification(pedidos.length);
+                            
+                            // Update UI only if there are changes
+                            this.renderPedidos(pedidos, container);
+                        } else {
+                            // Increment counter and slow down polling when no changes
+                            App.state.consecutiveNoChanges++;
+                            this.adjustPollingSpeed(false);
+                        }
+                        
+                        return pedidos;
                     } catch (error) {
                         container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center text-red-500"><p>${error.message}</p></div>`;
+                        return [];
+                    }
+                },
+
+                adjustPollingSpeed(hasChanges) {
+                    if (hasChanges) {
+                        // Speed up when there are changes - go to minimum interval
+                        App.state.pollingInterval = App.state.minPollingInterval;
+                        console.log('🚀 Polling acelerado a', App.state.pollingInterval / 1000, 'segundos (actividad detectada)');
+                    } else {
+                        // Slow down gradually when no changes
+                        if (App.state.consecutiveNoChanges >= 3) {
+                            // After 3 checks without changes, start slowing down
+                            const slowDownFactor = Math.min(App.state.consecutiveNoChanges - 2, 4); // Max 4x slower
+                            App.state.pollingInterval = Math.min(
+                                App.state.minPollingInterval * (1 + slowDownFactor * 0.5),
+                                App.state.maxPollingInterval
+                            );
+                            console.log('🐌 Polling ralentizado a', App.state.pollingInterval / 1000, 'segundos (sin actividad)');
+                        }
+                    }
+                    
+                    // Restart polling with new interval
+                    if (App.state.isPollingActive) {
+                        this.restartPolling();
+                    }
+                },
+
+                restartPolling() {
+                    // Clear current interval
+                    if (App.state.pedidosPolling) {
+                        clearInterval(App.state.pedidosPolling);
+                    }
+                    
+                    // Start new interval with updated speed
+                    App.state.pedidosPolling = setInterval(async () => {
+                        if (App.state.currentView === 'pedidos') {
+                            await this.loadPedidos();
+                        }
+                    }, App.state.pollingInterval);
+                },
+
+                startPolling() {
+                    // Don't start multiple polling intervals
+                    if (App.state.pedidosPolling) return;
+                    
+                    App.state.isPollingActive = true;
+                    App.state.consecutiveNoChanges = 0; // Reset counter
+                    App.state.pollingInterval = App.state.minPollingInterval; // Start fast
+                    
+                    // Start with fast polling
+                    console.log('🚀 Iniciando polling adaptativo en', App.state.pollingInterval / 1000, 'segundos');
+                    App.state.pedidosPolling = setInterval(async () => {
+                        if (App.state.currentView === 'pedidos') {
+                            await this.loadPedidos();
+                        }
+                    }, App.state.pollingInterval);
+                },
+
+                stopPolling() {
+                    if (App.state.pedidosPolling) {
+                        clearInterval(App.state.pedidosPolling);
+                        App.state.pedidosPolling = null;
+                        console.log('⏹️ Polling detenido');
+                    }
+                    
+                    App.state.isPollingActive = false;
+                    App.state.consecutiveNoChanges = 0;
+                    App.state.pollingInterval = App.state.minPollingInterval; // Reset to fast for next time
+                    
+                    // Clear notification dot when viewing pedidos
+                    const pedidosTab = document.querySelector('.nav-link[data-target="pedidos"]');
+                    const notificationDot = pedidosTab?.querySelector('.notification-dot');
+                    if (notificationDot) {
+                        notificationDot.remove();
                     }
                 },
 
@@ -318,6 +504,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
 
+                    // Mark user activity - speed up polling
+                    App.state.lastActivityTime = Date.now();
+                    App.state.consecutiveNoChanges = 0;
+                    App.components.Pedidos.adjustPollingSpeed(true);
+
                     const { action, id } = button.dataset;
                     let endpoint = '';
 
@@ -331,8 +522,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         await App.api.request(endpoint, { method: 'POST' }, button);
                         App.ui.showToast(`Pedido #${id} actualizado.`);
-                        // Recargamos solo la lista de pedidos para ver el cambio
-                        App.components.Pedidos.init(); 
+                        // Reload pedidos immediately to show changes
+                        await App.components.Pedidos.loadPedidos();
                     } catch (error) { /* ya manejado en App.api */ }
                 }
             },
@@ -349,16 +540,87 @@ document.addEventListener('DOMContentLoaded', () => {
             Productos: {
                 render(data) {
                     const emptyStateHtml = `
-                        <div class="col-span-full bg-gradient-to-br from-white to-slate-50 p-8 rounded-3xl shadow-xl border border-slate-200 text-center">
-                            <div class="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                                <i class="fas fa-utensils text-3xl text-orange-500"></i>
+                        <div class="col-span-full bg-gradient-to-br from-white to-slate-50 p-6 rounded-2xl shadow-lg border border-slate-200 text-center">
+                            <div class="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-utensils text-2xl text-orange-500"></i>
                             </div>
-                            <h2 class="text-xl font-black text-slate-800 mb-2">Tu menú está vacío</h2>
-                            <p class="text-slate-500 mb-4">¡Es hora de crear productos increíbles!</p>
-                            <div class="w-12 h-1 bg-gradient-to-r from-orange-400 to-red-500 rounded-full mx-auto"></div>
+                            <h2 class="text-lg font-black text-slate-800 mb-2">Tu menú está vacío</h2>
+                            <p class="text-slate-500 mb-3 text-sm">¡Es hora de crear productos increíbles!</p>
+                            <div class="w-8 h-0.5 bg-gradient-to-r from-orange-400 to-red-500 rounded-full mx-auto"></div>
                         </div>`;
                     
-                    const productosHtml = data.productos.length > 0 ? data.productos.map(p => {
+                    const productosHtml = data.productos.length > 0 ? this.renderProductsList(data.productos) : emptyStateHtml;
+                    
+                    return `
+                        <div id="view-productos" class="main-view p-4">
+                            <header class="mb-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h1 class="text-xl font-black text-slate-800">🍽️ Mis Productos</h1>
+                                        <p class="text-slate-500 text-xs">${data.productos.length} producto${data.productos.length !== 1 ? 's' : ''} en tu menú</p>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button id="view-toggle-btn" class="w-9 h-9 bg-gradient-to-r from-orange-100 to-red-100 rounded-xl flex items-center justify-center hover:scale-110 transition-transform shadow-md">
+                                            <i class="fas ${App.state.productViewMode === 'compact' ? 'fa-th-large' : 'fa-list'} text-orange-600 text-sm"></i>
+                                        </button>
+                                        <button class="w-9 h-9 bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl flex items-center justify-center hover:scale-110 transition-transform shadow-md">
+                                            <i class="fas fa-filter text-gray-600 text-sm"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="w-full h-0.5 bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 rounded-full"></div>
+                            </header>
+                            <div id="productos-container">
+                                ${productosHtml}
+                            </div>
+                        </div>`;
+                },
+
+                renderProductsList(productos) {
+                    if (App.state.productViewMode === 'compact') {
+                        return this.renderCompactView(productos);
+                    } else {
+                        return this.renderCardView(productos);
+                    }
+                },
+
+                renderCompactView(productos) {
+                    return `<div class="space-y-2">${productos.map(p => {
+                        const formattedPrice = (p.precio || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
+                        const isDisabled = p.disponible === false;
+                        return `
+                            <div class="product-item bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex items-center gap-3 hover:shadow-md transition-all duration-200 ${isDisabled ? 'opacity-60' : ''}" data-product-id="${p.id}">
+                                <div class="relative">
+                                    <img src="${p.imagenUrl || 'https://via.placeholder.com/400x300'}" alt="${p.nombre}" class="w-12 h-12 rounded-lg object-cover ${isDisabled ? 'grayscale' : ''}">
+                                    ${isDisabled ? '<div class="absolute inset-0 bg-red-500/10 rounded-lg flex items-center justify-center"><span class="text-red-500 text-xs font-bold">!</span></div>' : ''}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-semibold text-sm text-slate-800 truncate">${p.nombre}</h3>
+                                    <p class="text-xs text-slate-500 truncate">${p.descripcion || 'Sin descripción'}</p>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-sm font-bold text-orange-600">${formattedPrice}</span>
+                                        <div class="flex items-center gap-1">
+                                            <div class="w-1.5 h-1.5 rounded-full ${!isDisabled ? 'bg-green-400' : 'bg-red-400'}"></div>
+                                            <span class="text-xs ${!isDisabled ? 'text-green-600' : 'text-red-600'}">
+                                                ${!isDisabled ? 'Disponible' : 'Deshabilitado'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button data-action="edit" class="w-8 h-8 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors">
+                                        <i class="fas fa-edit text-blue-600 text-xs"></i>
+                                    </button>
+                                    <button data-action="delete" class="w-8 h-8 bg-orange-50 hover:bg-orange-100 rounded-lg flex items-center justify-center transition-colors">
+                                        <i class="fas fa-eye-slash text-orange-600 text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>`;
+                    }).join('')}</div>`;
+                },
+
+                renderCardView(productos) {
+                    return `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${productos.map(p => {
                         const formattedPrice = (p.precio || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
                         const isDisabled = p.disponible === false;
                         return `
@@ -398,31 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </div>
                                 </div>
                             </div>`;
-                    }).join('') : emptyStateHtml;
-                    
-                    return `
-                        <div id="view-productos" class="main-view p-4">
-                            <header class="mb-6">
-                                <div class="flex items-center justify-between mb-4">
-                                    <div>
-                                        <h1 class="text-2xl font-black text-slate-800">🍽️ Mis Productos</h1>
-                                        <p class="text-slate-500 text-sm">${data.productos.length} producto${data.productos.length !== 1 ? 's' : ''} en tu menú</p>
-                                    </div>
-                                    <div class="flex space-x-2">
-                                        <button class="w-10 h-10 bg-gradient-to-r from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
-                                            <i class="fas fa-th text-gray-600 text-sm"></i>
-                                        </button>
-                                        <button class="w-10 h-10 bg-gradient-to-r from-orange-100 to-red-100 rounded-2xl flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
-                                            <i class="fas fa-filter text-orange-600 text-sm"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="w-full h-1 bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 rounded-full"></div>
-                            </header>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                ${productosHtml}
-                            </div>
-                        </div>`;
+                    }).join('')}</div>`;
                 },
                 init(data) {
                     App.ui.initModal('product-modal', () => {
@@ -432,6 +670,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         App.components.Opciones.renderAsignacion(App.state.categorias, { categoriasDeOpciones: [] });
                     });
+
+                    // Store data in state for re-rendering
+                    App.state.productos = data.productos;
+
+                    // Toggle de vista de productos
+                    const viewToggleBtn = document.getElementById('view-toggle-btn');
+                    if (viewToggleBtn) {
+                        viewToggleBtn.addEventListener('click', () => {
+                            App.state.productViewMode = App.state.productViewMode === 'compact' ? 'cards' : 'compact';
+                            const container = document.getElementById('productos-container');
+                            if (container) {
+                                container.innerHTML = this.renderProductsList(data.productos);
+                                this.attachProductListeners(); // Re-attach event listeners
+                            }
+                            // Update button icon
+                            const icon = viewToggleBtn.querySelector('i');
+                            icon.className = `fas ${App.state.productViewMode === 'compact' ? 'fa-th-large' : 'fa-list'} text-orange-600 text-sm`;
+                        });
+                    }
+                    
+                    this.attachProductListeners();
                     
                     const productForm = document.getElementById('product-form');
                     if (productForm) {
@@ -459,21 +718,29 @@ document.addEventListener('DOMContentLoaded', () => {
                             } catch (error) { /* Error manejado */ }
                         });
                     }
-                    
-                    const productContainer = document.getElementById('view-productos');
+                },
+
+                attachProductListeners() {
+                    const productContainer = document.getElementById('productos-container');
                     if (productContainer) {
-                        productContainer.addEventListener('click', (e) => {
-                            const button = e.target.closest('button[data-action]');
-                            if (!button) return;
-                            const card = button.closest('.product-card');
-                            const productId = card.dataset.productId;
-                            const action = button.dataset.action;
-                            if (action === 'edit') {
-                                this.openEditModal(productId, data.productos);
-                            } else if (action === 'delete') {
-                                this.deleteProduct(productId);
-                            }
-                        });
+                        // Remove existing listeners to prevent duplicates
+                        productContainer.removeEventListener('click', this.handleProductAction);
+                        productContainer.addEventListener('click', this.handleProductAction.bind(this));
+                    }
+                },
+
+                handleProductAction(e) {
+                    const button = e.target.closest('button[data-action]');
+                    if (!button) return;
+                    
+                    const productElement = button.closest('[data-product-id]');
+                    const productId = productElement.dataset.productId;
+                    const action = button.dataset.action;
+                    
+                    if (action === 'edit') {
+                        this.openEditModal(productId, App.state.productos);
+                    } else if (action === 'delete') {
+                        this.deleteProduct(productId);
                     }
                 },
                 
@@ -811,4 +1078,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     App.init();
+
+    // Cleanup when page is unloaded
+    window.addEventListener('beforeunload', () => {
+        App.components.Pedidos.stopPolling();
+    });
+
+    // Stop polling when page becomes hidden (browser tab switch, minimize, etc.)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            App.components.Pedidos.stopPolling();
+        } else if (App.state.currentView === 'pedidos') {
+            // Resume polling when page becomes visible again and we're on pedidos view
+            App.components.Pedidos.startPolling();
+        }
+    });
 });

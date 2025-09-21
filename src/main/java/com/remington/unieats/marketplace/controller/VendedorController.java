@@ -102,6 +102,46 @@ public class VendedorController {
         }
     }
 
+    @PostMapping("/productos/{productoId}/actualizar")
+    public ResponseEntity<?> procesarActualizacionProducto(@PathVariable Integer productoId, @ModelAttribute ProductoDTO productoDTO, @RequestParam(value = "imagen", required = false) MultipartFile imagenFile, Authentication authentication) {
+        try {
+            String correo = authentication.getName();
+            Usuario vendedor = usuarioRepository.findByCorreo(correo).orElseThrow(() -> new IllegalStateException("Vendedor no encontrado."));
+            Tienda tienda = vendedorService.findTiendaByVendedor(vendedor).orElseThrow(() -> new IllegalStateException("Tienda no encontrada."));
+            
+            // Verificar que el producto pertenece a la tienda del vendedor
+            Producto producto = productoService.findById(productoId).orElseThrow(() -> new IllegalStateException("Producto no encontrado."));
+            if (!producto.getTienda().getId().equals(tienda.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("No tienes permisos para actualizar este producto.");
+            }
+            
+            Producto productoActualizado = productoService.updateProducto(productoId, productoDTO, imagenFile);
+            return ResponseEntity.ok(productoActualizado);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/productos/{productoId}/eliminar")
+    public ResponseEntity<?> procesarEliminacionProducto(@PathVariable Integer productoId, Authentication authentication) {
+        try {
+            String correo = authentication.getName();
+            Usuario vendedor = usuarioRepository.findByCorreo(correo).orElseThrow(() -> new IllegalStateException("Vendedor no encontrado."));
+            Tienda tienda = vendedorService.findTiendaByVendedor(vendedor).orElseThrow(() -> new IllegalStateException("Tienda no encontrada."));
+            
+            // Verificar que el producto pertenece a la tienda del vendedor
+            Producto producto = productoService.findById(productoId).orElseThrow(() -> new IllegalStateException("Producto no encontrado."));
+            if (!producto.getTienda().getId().equals(tienda.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("No tienes permisos para eliminar este producto.");
+            }
+            
+            productoService.deleteProducto(productoId);
+            return ResponseEntity.ok().body("Producto eliminado exitosamente.");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PostMapping("/horarios/actualizar")
     public ResponseEntity<?> procesarUpdateHorarios(@RequestBody List<HorarioUpdateDTO> horariosDTO, Authentication authentication) {
         try {

@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -70,6 +71,68 @@ public class ProductoServiceImpl implements ProductoService {
 
         } catch (IOException e) {
             throw new RuntimeException("No se pudo guardar la imagen del producto. Error: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public Optional<Producto> findById(Integer id) {
+        return productoRepository.findById(id);
+    }
+
+    @Override
+    public Producto updateProducto(Integer id, ProductoDTO productoDTO, MultipartFile imagenFile) {
+        // 1. Buscar el producto existente
+        Producto producto = productoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Producto no encontrado con ID: " + id));
+
+        // 2. Actualizar los campos básicos
+        producto.setNombre(productoDTO.getNombre());
+        producto.setDescripcion(productoDTO.getDescripcion());
+        producto.setPrecio(productoDTO.getPrecio());
+        producto.setDisponible(productoDTO.getDisponible() != null ? productoDTO.getDisponible() : true);
+
+        // 3. Actualizar la imagen si se proporciona una nueva
+        if (imagenFile != null && !imagenFile.isEmpty()) {
+            // Eliminar la imagen anterior si existe
+            if (producto.getImagenUrl() != null && !producto.getImagenUrl().isEmpty()) {
+                eliminarImagenAnterior(producto.getImagenUrl());
+            }
+            // Guardar la nueva imagen
+            String nuevaImagenUrl = guardarImagenProducto(imagenFile);
+            producto.setImagenUrl(nuevaImagenUrl);
+        }
+
+        // 4. Guardar los cambios
+        return productoRepository.save(producto);
+    }
+
+    @Override
+    public void deleteProducto(Integer id) {
+        // 1. Buscar el producto existente
+        Producto producto = productoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Producto no encontrado con ID: " + id));
+
+        // 2. Eliminar la imagen asociada si existe
+        if (producto.getImagenUrl() != null && !producto.getImagenUrl().isEmpty()) {
+            eliminarImagenAnterior(producto.getImagenUrl());
+        }
+
+        // 3. Eliminar el producto de la base de datos
+        productoRepository.delete(producto);
+    }
+
+    private void eliminarImagenAnterior(String imagenUrl) {
+        try {
+            if (imagenUrl != null && imagenUrl.startsWith("/uploads/productos/")) {
+                String filename = imagenUrl.substring("/uploads/productos/".length());
+                Path imagePath = Paths.get(UPLOAD_DIR_PRODUCTOS + filename);
+                if (Files.exists(imagePath)) {
+                    Files.delete(imagePath);
+                }
+            }
+        } catch (IOException e) {
+            // Log del error pero no fallar la operación principal
+            System.err.println("Error al eliminar imagen anterior: " + e.getMessage());
         }
     }
 }

@@ -348,12 +348,79 @@ document.addEventListener('DOMContentLoaded', () => {
             
             Productos: {
                 render(data) {
-                    const emptyStateHtml = `<div class="col-span-full bg-white p-8 rounded-2xl shadow-lg text-center"><i class="fas fa-box-open text-5xl text-slate-400 mb-4"></i><h2 class="text-xl font-bold">Tu menú está vacío</h2><p class="mt-2 text-slate-500">Usa el botón (+) para añadir tu primer producto.</p></div>`;
+                    const emptyStateHtml = `
+                        <div class="col-span-full bg-gradient-to-br from-white to-slate-50 p-8 rounded-3xl shadow-xl border border-slate-200 text-center">
+                            <div class="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-utensils text-3xl text-orange-500"></i>
+                            </div>
+                            <h2 class="text-xl font-black text-slate-800 mb-2">Tu menú está vacío</h2>
+                            <p class="text-slate-500 mb-4">¡Es hora de crear productos increíbles!</p>
+                            <div class="w-12 h-1 bg-gradient-to-r from-orange-400 to-red-500 rounded-full mx-auto"></div>
+                        </div>`;
+                    
                     const productosHtml = data.productos.length > 0 ? data.productos.map(p => {
                         const formattedPrice = (p.precio || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-                        return `<div class="product-card bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1" data-product-id="${p.id}"><img src="${p.imagenUrl || 'https://via.placeholder.com/400x300'}" alt="${p.nombre}" class="w-full h-20 object-cover"><div class="p-2 flex flex-col flex-grow"><h3 class="font-bold text-sm text-slate-800 truncate">${p.nombre}</h3><p class="text-xs text-slate-500 flex-grow min-h-[2.5rem]">${p.descripcion ? p.descripcion.substring(0, 35) : ''}${p.descripcion && p.descripcion.length > 35 ? '...' : ''}</p><div class="flex justify-between items-end mt-1"><p class="text-base text-indigo-600 font-bold">${formattedPrice}</p><div class="flex items-center space-x-1 text-slate-400"><button data-action="edit" class="p-1 hover:text-blue-600 transition-colors"><i class="fas fa-pencil-alt fa-sm"></i></button><button data-action="delete" class="p-1 hover:text-red-600 transition-colors"><i class="fas fa-trash-alt fa-sm"></i></button></div></div></div></div>`;
+                        return `
+                            <div class="product-card group bg-white rounded-3xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 border border-slate-100" data-product-id="${p.id}">
+                                <div class="relative overflow-hidden">
+                                    <img src="${p.imagenUrl || 'https://via.placeholder.com/400x300'}" alt="${p.nombre}" class="w-full h-24 object-cover group-hover:scale-110 transition-transform duration-500">
+                                    <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                    <div class="absolute top-2 right-2 flex space-x-1">
+                                        <button data-action="edit" class="w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-blue-500 hover:text-white transform hover:scale-110 shadow-lg">
+                                            <i class="fas fa-edit text-xs"></i>
+                                        </button>
+                                        <button data-action="delete" class="w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-red-500 hover:text-white transform hover:scale-110 shadow-lg">
+                                            <i class="fas fa-trash text-xs"></i>
+                                        </button>
+                                    </div>
+                                    <div class="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <span class="bg-white/90 backdrop-blur-sm text-xs font-bold text-slate-700 px-2 py-1 rounded-full">
+                                            ${p.categoria || 'General'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="p-4">
+                                    <h3 class="font-bold text-base text-slate-800 truncate mb-1 group-hover:text-orange-600 transition-colors">${p.nombre}</h3>
+                                    <p class="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">${p.descripcion || 'Sin descripción'}</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex flex-col">
+                                            <span class="text-lg font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">${formattedPrice}</span>
+                                            <span class="text-xs text-slate-400">Precio base</span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <div class="w-2 h-2 rounded-full ${p.disponible !== false ? 'bg-green-400' : 'bg-red-400'}"></div>
+                                            <span class="text-xs font-medium ${p.disponible !== false ? 'text-green-600' : 'text-red-600'}">
+                                                ${p.disponible !== false ? 'Disponible' : 'Agotado'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>`;
                     }).join('') : emptyStateHtml;
-                    return `<div id="view-productos" class="main-view p-4"><header class="mb-4"><h1 class="text-2xl font-bold text-slate-800">Mis Productos</h1></header><div class="grid grid-cols-2 gap-2">${productosHtml}</div></div>`;
+                    
+                    return `
+                        <div id="view-productos" class="main-view p-4">
+                            <header class="mb-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h1 class="text-2xl font-black text-slate-800">🍽️ Mis Productos</h1>
+                                        <p class="text-slate-500 text-sm">${data.productos.length} producto${data.productos.length !== 1 ? 's' : ''} en tu menú</p>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button class="w-10 h-10 bg-gradient-to-r from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
+                                            <i class="fas fa-th text-gray-600 text-sm"></i>
+                                        </button>
+                                        <button class="w-10 h-10 bg-gradient-to-r from-orange-100 to-red-100 rounded-2xl flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
+                                            <i class="fas fa-filter text-orange-600 text-sm"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="w-full h-1 bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 rounded-full"></div>
+                            </header>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                ${productosHtml}
+                            </div>
+                        </div>`;
                 },
                 init(data) {
                     App.ui.initModal('product-modal', () => {
@@ -400,14 +467,133 @@ document.addEventListener('DOMContentLoaded', () => {
                             const productId = card.dataset.productId;
                             const action = button.dataset.action;
                             if (action === 'edit') {
-                                App.ui.showToast(`Editar producto #${productId}. (Función no implementada)`, 'info');
+                                this.openEditModal(productId, data.productos);
                             } else if (action === 'delete') {
-                                if (confirm('¿Estás seguro de eliminar este producto?')) {
-                                    App.ui.showToast(`Eliminar producto #${productId}. (Función no implementada)`, 'info');
-                                }
+                                this.deleteProduct(productId);
                             }
                         });
                     }
+                },
+                
+                async openEditModal(productId, productos) {
+                    const producto = productos.find(p => p.id == productId);
+                    if (!producto) return;
+                    
+                    const modalHtml = `
+                        <div id="edit-product-modal" class="fixed inset-0 z-50 flex justify-center items-center p-4 bg-black/60 backdrop-blur-sm">
+                            <div class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                                <div class="bg-gradient-to-r from-orange-500 to-red-500 p-5 text-white">
+                                    <div class="flex justify-between items-center">
+                                        <h3 class="text-xl font-bold">✏️ Editar Producto</h3>
+                                        <button onclick="this.closest('#edit-product-modal').remove()" class="text-white/80 hover:text-white text-2xl transition-colors">&times;</button>
+                                    </div>
+                                </div>
+                                <form id="edit-product-form" class="flex flex-col flex-grow">
+                                    <div class="p-6 space-y-4 overflow-y-auto">
+                                        <div class="relative">
+                                            <input type="text" id="edit-nombre" name="nombre" value="${producto.nombre}" class="input-field w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-orange-500 focus:outline-none transition-colors" placeholder=" " required>
+                                            <label for="edit-nombre" class="floating-label">Nombre del producto</label>
+                                        </div>
+                                        <div class="relative">
+                                            <textarea id="edit-descripcion" name="descripcion" class="textarea-field w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-orange-500 focus:outline-none transition-colors resize-none" rows="3" placeholder=" ">${producto.descripcion || ''}</textarea>
+                                            <label for="edit-descripcion" class="floating-label">Descripción</label>
+                                        </div>
+                                        <div class="relative">
+                                            <input type="number" id="edit-precio" name="precio" value="${producto.precio}" step="0.01" min="0" class="input-field w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-orange-500 focus:outline-none transition-colors" placeholder=" " required>
+                                            <label for="edit-precio" class="floating-label">Precio (COP)</label>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-700 mb-2">Imagen actual</label>
+                                            <img src="${producto.imagenUrl || 'https://via.placeholder.com/300x200'}" alt="Imagen actual" class="w-full h-32 object-cover rounded-2xl border border-gray-200 mb-2">
+                                            <input type="file" name="imagen" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-colors" accept="image/*">
+                                        </div>
+                                        <div class="flex items-center space-x-3">
+                                            <input type="checkbox" id="edit-disponible" ${producto.disponible !== false ? 'checked' : ''} class="w-5 h-5 text-orange-600 rounded focus:ring-orange-500">
+                                            <label for="edit-disponible" class="text-sm font-medium text-slate-700">Producto disponible</label>
+                                        </div>
+                                    </div>
+                                    <div class="p-6 border-t bg-gray-50 flex space-x-3">
+                                        <button type="button" onclick="this.closest('#edit-product-modal').remove()" class="flex-1 bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-2xl hover:bg-gray-300 transition-colors">
+                                            Cancelar
+                                        </button>
+                                        <button type="submit" class="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 px-4 rounded-2xl hover:from-orange-600 hover:to-red-600 transition-all shadow-lg hover:shadow-xl">
+                                            💾 Guardar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>`;
+                    
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    
+                    document.getElementById('edit-product-form').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        formData.append('disponible', document.getElementById('edit-disponible').checked);
+                        
+                        const submitButton = e.target.querySelector('button[type="submit"]');
+                        const originalContent = submitButton.innerHTML;
+                        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Guardando...';
+                        submitButton.disabled = true;
+                        
+                        try {
+                            await App.api.request(`/api/vendedor/productos/${productId}/actualizar`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            App.ui.showToast('✅ Producto actualizado con éxito');
+                            document.getElementById('edit-product-modal').remove();
+                            setTimeout(() => window.location.reload(), 1500);
+                        } catch (error) {
+                            submitButton.innerHTML = originalContent;
+                            submitButton.disabled = false;
+                        }
+                    });
+                },
+                
+                async deleteProduct(productId) {
+                    const confirmModalHtml = `
+                        <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex justify-center items-center p-4 bg-black/60 backdrop-blur-sm">
+                            <div class="relative bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full transform animate-pulse">
+                                <div class="text-center">
+                                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <i class="fas fa-trash-alt text-2xl text-red-500"></i>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-slate-800 mb-2">¿Eliminar producto?</h3>
+                                    <p class="text-slate-500 mb-6">Esta acción no se puede deshacer</p>
+                                    <div class="flex space-x-3">
+                                        <button onclick="this.closest('#delete-confirm-modal').remove()" class="flex-1 bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-2xl hover:bg-gray-300 transition-colors">
+                                            Cancelar
+                                        </button>
+                                        <button id="confirm-delete-btn" class="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold py-3 px-4 rounded-2xl hover:from-red-600 hover:to-red-700 transition-all shadow-lg">
+                                            🗑️ Eliminar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    
+                    document.body.insertAdjacentHTML('beforeend', confirmModalHtml);
+                    
+                    document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+                        const btn = document.getElementById('confirm-delete-btn');
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Eliminando...';
+                        btn.disabled = true;
+                        
+                        try {
+                            await App.api.request(`/api/vendedor/productos/${productId}/eliminar`, {
+                                method: 'DELETE'
+                            });
+                            
+                            App.ui.showToast('🗑️ Producto eliminado con éxito');
+                            document.getElementById('delete-confirm-modal').remove();
+                            setTimeout(() => window.location.reload(), 1500);
+                        } catch (error) {
+                            btn.innerHTML = '🗑️ Eliminar';
+                            btn.disabled = false;
+                        }
+                    });
                 }
             },
 

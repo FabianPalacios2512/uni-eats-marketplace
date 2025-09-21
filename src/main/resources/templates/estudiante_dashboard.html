@@ -11,6 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
+        /* Ocultar scrollbars en carruseles */
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
         .nav-link.active i, .nav-link.active span { color: #4f46e5; /* Indigo-600 */ }
         .skeleton { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; background-color: #e5e7eb; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
@@ -33,27 +36,54 @@
 </head>
 <body class="bg-slate-100">
 
-    <div class="max-w-lg mx-auto bg-slate-100 min-h-screen pb-24">
-        <header id="app-header" class="sticky top-0 bg-white/80 backdrop-blur-md z-20 shadow-sm p-4"></header>
-        <main id="app-container" class="p-4"></main>
+    <div class="w-full bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 min-h-screen pb-24">
+        <header id="app-header" class="sticky top-0 bg-white/95 backdrop-blur-xl shadow-xl z-20 border-b border-gradient-to-r from-orange-200 to-red-200">
+            <div class="flex items-center justify-between px-4 py-3">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <i class="fas fa-utensils text-white text-sm"></i>
+                    </div>
+                    <h1 class="text-xl font-black bg-gradient-to-r from-orange-600 via-red-500 to-pink-500 bg-clip-text text-transparent">
+                        Uni-Eats
+                    </h1>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+                        <i class="fas fa-bell text-gray-600 text-sm"></i>
+                    </div>
+                    <div class="w-8 h-8 bg-gradient-to-br from-indigo-100 to-purple-200 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-indigo-600 text-sm"></i>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <main id="app-container" class="px-1 pt-1"></main>
     </div>
 
-    <nav id="app-nav" class="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-white border-t flex justify-around z-20">
-        <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-2" data-view="inicio">
-            <i class="fas fa-home text-xl text-slate-500"></i>
-            <span class="text-xs text-slate-500 font-medium">Inicio</span>
+    <nav id="app-nav" class="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 flex justify-around z-20 shadow-2xl">
+        <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-3 relative group" data-view="inicio">
+            <div class="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <i class="fas fa-home text-white text-sm"></i>
+            </div>
+            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Inicio</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-2" data-view="tiendas">
-            <i class="fas fa-store text-xl text-slate-500"></i>
-            <span class="text-xs text-slate-500 font-medium">Tiendas</span>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-3 relative group" data-view="tiendas">
+            <div class="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-orange-400 group-hover:to-red-500 transition-all shadow-lg group-hover:scale-110">
+                <i class="fas fa-store text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+            </div>
+            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Tiendas</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-2" data-view="misPedidos">
-            <i class="fas fa-receipt text-xl text-slate-500"></i>
-            <span class="text-xs text-slate-500 font-medium">Mis Pedidos</span>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-3 relative group" data-view="misPedidos">
+            <div class="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-orange-400 group-hover:to-red-500 transition-all shadow-lg group-hover:scale-110">
+                <i class="fas fa-receipt text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+            </div>
+            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Pedidos</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-2" data-view="perfil">
-            <i class="fas fa-user text-xl text-slate-500"></i>
-            <span class="text-xs text-slate-500 font-medium">Mi Perfil</span>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-3 relative group" data-view="perfil">
+            <div class="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-orange-400 group-hover:to-red-500 transition-all shadow-lg group-hover:scale-110">
+                <i class="fas fa-user text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+            </div>
+            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Perfil</span>
         </a>
     </nav>
     

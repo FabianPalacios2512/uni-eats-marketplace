@@ -1,0 +1,39 @@
+[33m2de3beb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to 2de3beb
+[33me65925c[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{1}: commit (merge): Merge branch 'act-para-dieago'
+[33m7007bbe[m[33m ([m[1;31morigin/primera-act[m[33m, [m[1;32mprimera-act[m[33m)[m HEAD@{2}: checkout: moving from act-para-diego to main
+[33m0a755ee[m[33m ([m[1;31morigin/act-para-diego[m[33m, [m[1;32mact-para-diego[m[33m)[m HEAD@{3}: checkout: moving from 0a755ee25416aed027134b96232924cc5fd71d70 to act-para-diego
+[33m0a755ee[m[33m ([m[1;31morigin/act-para-diego[m[33m, [m[1;32mact-para-diego[m[33m)[m HEAD@{4}: commit: act para diego
+[33m2de3beb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{5}: commit: todo full
+[33m89f089a[m HEAD@{6}: commit: act todo bueno
+[33m9a4d0fd[m HEAD@{7}: commit: app al 40% funcional
+[33m4452354[m HEAD@{8}: checkout: moving from primera-act to 4452354e6b350866ef1ba7c1d2ee6d2ce58ba5b8
+[33m7007bbe[m[33m ([m[1;31morigin/primera-act[m[33m, [m[1;32mprimera-act[m[33m)[m HEAD@{9}: checkout: moving from primera-act to primera-act
+[33m7007bbe[m[33m ([m[1;31morigin/primera-act[m[33m, [m[1;32mprimera-act[m[33m)[m HEAD@{10}: checkout: moving from main to primera-act
+[33m7007bbe[m[33m ([m[1;31morigin/primera-act[m[33m, [m[1;32mprimera-act[m[33m)[m HEAD@{11}: checkout: moving from primera-act to main
+[33m7007bbe[m[33m ([m[1;31morigin/primera-act[m[33m, [m[1;32mprimera-act[m[33m)[m HEAD@{12}: checkout: moving from primera-act to primera-act
+[33m7007bbe[m[33m ([m[1;31morigin/primera-act[m[33m, [m[1;32mprimera-act[m[33m)[m HEAD@{13}: checkout: moving from main to primera-act
+[33m7007bbe[m[33m ([m[1;31morigin/primera-act[m[33m, [m[1;32mprimera-act[m[33m)[m HEAD@{14}: commit: ss
+[33mc0433f3[m HEAD@{15}: checkout: moving from main to main
+[33mc0433f3[m HEAD@{16}: checkout: moving from main to main
+[33mc0433f3[m HEAD@{17}: commit: .
+[33m131d534[m HEAD@{18}: commit: .
+[33m06e559a[m HEAD@{19}: commit: .
+[33mfba05df[m HEAD@{20}: commit: .
+[33mf9d71fa[m HEAD@{21}: commit: .
+[33m0abfe18[m HEAD@{22}: commit: -
+[33m09a7e23[m HEAD@{23}: commit: -
+[33me648e58[m HEAD@{24}: commit: -
+[33m03ef542[m HEAD@{25}: commit: -
+[33md7dbf7e[m HEAD@{26}: commit: -
+[33md588e4e[m HEAD@{27}: commit: -
+[33m63771b3[m HEAD@{28}: commit: -
+[33m21be3ec[m HEAD@{29}: commit: -
+[33mb327dc3[m HEAD@{30}: commit: -
+[33m7367441[m HEAD@{31}: commit: -
+[33m22989a5[m HEAD@{32}: commit: .
+[33mec90bd9[m HEAD@{33}: commit: A
+[33mc83bfc4[m HEAD@{34}: commit: A
+[33m6a3e256[m HEAD@{35}: commit: A
+[33m4452354[m HEAD@{36}: commit: A
+[33madd8b62[m HEAD@{37}: commit: ACT
+[33m67ea297[m HEAD@{38}: commit (initial): primera act

@@ -136,7 +136,7 @@ public class VendedorController {
             }
             
             productoService.deleteProducto(productoId);
-            return ResponseEntity.ok().body("Producto eliminado exitosamente.");
+            return ResponseEntity.ok().body("Producto deshabilitado exitosamente. No será visible para los clientes.");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

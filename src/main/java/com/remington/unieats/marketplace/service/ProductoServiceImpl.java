@@ -112,13 +112,14 @@ public class ProductoServiceImpl implements ProductoService {
         Producto producto = productoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado con ID: " + id));
 
-        // 2. Eliminar la imagen asociada si existe
-        if (producto.getImagenUrl() != null && !producto.getImagenUrl().isEmpty()) {
-            eliminarImagenAnterior(producto.getImagenUrl());
-        }
-
-        // 3. Eliminar el producto de la base de datos
-        productoRepository.delete(producto);
+        // 2. En lugar de eliminar físicamente, simplemente lo deshabilitamos
+        producto.setDisponible(false);
+        
+        // 3. Guardar el cambio (soft delete)
+        productoRepository.save(producto);
+        
+        // Nota: No eliminamos la imagen ni el registro, solo lo marcamos como no disponible
+        // Esto evita problemas con claves foráneas y preserva el historial de pedidos
     }
 
     private void eliminarImagenAnterior(String imagenUrl) {

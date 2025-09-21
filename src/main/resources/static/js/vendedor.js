@@ -360,17 +360,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const productosHtml = data.productos.length > 0 ? data.productos.map(p => {
                         const formattedPrice = (p.precio || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
+                        const isDisabled = p.disponible === false;
                         return `
-                            <div class="product-card group bg-white rounded-3xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 border border-slate-100" data-product-id="${p.id}">
+                            <div class="product-card group bg-white rounded-3xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 border border-slate-100 ${isDisabled ? 'opacity-60 grayscale' : ''}" data-product-id="${p.id}">
                                 <div class="relative overflow-hidden">
                                     <img src="${p.imagenUrl || 'https://via.placeholder.com/400x300'}" alt="${p.nombre}" class="w-full h-24 object-cover group-hover:scale-110 transition-transform duration-500">
                                     <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                    ${isDisabled ? '<div class="absolute inset-0 bg-red-500/20 flex items-center justify-center"><span class="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">DESHABILITADO</span></div>' : ''}
                                     <div class="absolute top-2 right-2 flex space-x-1">
                                         <button data-action="edit" class="w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-blue-500 hover:text-white transform hover:scale-110 shadow-lg">
                                             <i class="fas fa-edit text-xs"></i>
                                         </button>
-                                        <button data-action="delete" class="w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-red-500 hover:text-white transform hover:scale-110 shadow-lg">
-                                            <i class="fas fa-trash text-xs"></i>
+                                        <button data-action="delete" class="w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-orange-500 hover:text-white transform hover:scale-110 shadow-lg">
+                                            <i class="fas fa-eye-slash text-xs"></i>
                                         </button>
                                     </div>
                                     <div class="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -388,9 +390,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                             <span class="text-xs text-slate-400">Precio base</span>
                                         </div>
                                         <div class="flex items-center space-x-2">
-                                            <div class="w-2 h-2 rounded-full ${p.disponible !== false ? 'bg-green-400' : 'bg-red-400'}"></div>
-                                            <span class="text-xs font-medium ${p.disponible !== false ? 'text-green-600' : 'text-red-600'}">
-                                                ${p.disponible !== false ? 'Disponible' : 'Agotado'}
+                                            <div class="w-2 h-2 rounded-full ${!isDisabled ? 'bg-green-400' : 'bg-red-400'}"></div>
+                                            <span class="text-xs font-medium ${!isDisabled ? 'text-green-600' : 'text-red-600'}">
+                                                ${!isDisabled ? 'Disponible' : 'Deshabilitado'}
                                             </span>
                                         </div>
                                     </div>
@@ -557,17 +559,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex justify-center items-center p-4 bg-black/60 backdrop-blur-sm">
                             <div class="relative bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full transform animate-pulse">
                                 <div class="text-center">
-                                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <i class="fas fa-trash-alt text-2xl text-red-500"></i>
+                                    <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <i class="fas fa-eye-slash text-2xl text-orange-500"></i>
                                     </div>
-                                    <h3 class="text-xl font-bold text-slate-800 mb-2">¿Eliminar producto?</h3>
-                                    <p class="text-slate-500 mb-6">Esta acción no se puede deshacer</p>
+                                    <h3 class="text-xl font-bold text-slate-800 mb-2">¿Deshabilitar producto?</h3>
+                                    <p class="text-slate-500 mb-6">El producto no será visible para los clientes, pero se conservará el historial</p>
                                     <div class="flex space-x-3">
                                         <button onclick="this.closest('#delete-confirm-modal').remove()" class="flex-1 bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-2xl hover:bg-gray-300 transition-colors">
                                             Cancelar
                                         </button>
-                                        <button id="confirm-delete-btn" class="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold py-3 px-4 rounded-2xl hover:from-red-600 hover:to-red-700 transition-all shadow-lg">
-                                            🗑️ Eliminar
+                                        <button id="confirm-delete-btn" class="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 px-4 rounded-2xl hover:from-orange-600 hover:to-red-600 transition-all shadow-lg">
+                                            👁️‍�️ Deshabilitar
                                         </button>
                                     </div>
                                 </div>
@@ -578,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
                         const btn = document.getElementById('confirm-delete-btn');
-                        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Eliminando...';
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deshabilitando...';
                         btn.disabled = true;
                         
                         try {
@@ -586,11 +588,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 method: 'DELETE'
                             });
                             
-                            App.ui.showToast('🗑️ Producto eliminado con éxito');
+                            App.ui.showToast('�️‍🗨️ Producto deshabilitado con éxito');
                             document.getElementById('delete-confirm-modal').remove();
                             setTimeout(() => window.location.reload(), 1500);
                         } catch (error) {
-                            btn.innerHTML = '🗑️ Eliminar';
+                            btn.innerHTML = '👁️‍�️ Deshabilitar';
                             btn.disabled = false;
                         }
                     });

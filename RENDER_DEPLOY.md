@@ -27,6 +27,12 @@ SPRING_MAIL_USERNAME=tu_email@gmail.com
 SPRING_MAIL_PASSWORD=tu_app_password_gmail
 ```
 
+> 📧 **IMPORTANTE GMAIL:**
+> - Para `SPRING_MAIL_PASSWORD` NO uses tu contraseña normal
+> - Usa una "App Password" de Gmail (más seguro)
+> - Ve a: Google Account → Security → 2-Step Verification → App passwords
+> - Genera una contraseña específica para esta app
+
 ### 4️⃣ CONFIGURACIÓN AVANZADA
 - **Plan:** `Free` (para empezar)
 - **Auto-Deploy:** `Yes` (deploy automático con cada push)

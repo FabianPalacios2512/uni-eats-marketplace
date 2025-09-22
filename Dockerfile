@@ -9,14 +9,14 @@ COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
 
-# Descargamos dependencias (esto se cachea)
-RUN ./mvnw dependency:go-offline -B
+# Damos permisos y descargamos dependencias (esto se cachea)
+RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
 # Copiamos código fuente
 COPY src ./src
 
-# Compilamos el proyecto
-RUN chmod +x mvnw && ./mvnw clean package -DskipTests -B
+# Compilamos el proyecto (mvnw ya tiene permisos)
+RUN ./mvnw clean package -DskipTests -B
 
 # Etapa 2: Imagen final optimizada
 FROM eclipse-temurin:21-jre

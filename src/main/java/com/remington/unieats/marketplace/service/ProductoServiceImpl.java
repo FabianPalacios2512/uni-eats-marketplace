@@ -8,13 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class ProductoServiceImpl implements ProductoService {
@@ -22,7 +17,8 @@ public class ProductoServiceImpl implements ProductoService {
     @Autowired
     private ProductoRepository productoRepository;
 
-    private final String UPLOAD_DIR_PRODUCTOS = "./uploads/productos/";
+    @Autowired
+    private S3ImageService s3ImageService;
 
     @Override
     public List<Producto> findByTienda(Tienda tienda) {
@@ -31,8 +27,8 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     public Producto createProducto(ProductoDTO productoDTO, Tienda tienda, MultipartFile imagenFile) {
-        // 1. Guardar la imagen del producto
-        String imagenUrl = guardarImagenProducto(imagenFile);
+        // 1. Subir la imagen usando S3 o filesystem local
+        String imagenUrl = s3ImageService.uploadProductImage(imagenFile);
 
         // 2. Crear la nueva entidad Producto
         Producto nuevoProducto = new Producto();
@@ -44,34 +40,6 @@ public class ProductoServiceImpl implements ProductoService {
         nuevoProducto.setDisponible(true); // Por defecto, un nuevo producto está disponible
 
         return productoRepository.save(nuevoProducto);
-    }
-
-    private String guardarImagenProducto(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            // Permitimos crear productos sin imagen, asignando una por defecto.
-            return null; 
-        }
-        try {
-            Path uploadPath = Paths.get(UPLOAD_DIR_PRODUCTOS);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            String originalFilename = file.getOriginalFilename();
-            String extension = "";
-            if (originalFilename != null && originalFilename.contains(".")) {
-                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-            }
-            String uniqueFilename = UUID.randomUUID().toString() + extension;
-
-            Path filePath = uploadPath.resolve(uniqueFilename);
-            Files.copy(file.getInputStream(), filePath);
-
-            return "/uploads/productos/" + uniqueFilename;
-
-        } catch (IOException e) {
-            throw new RuntimeException("No se pudo guardar la imagen del producto. Error: " + e.getMessage());
-        }
     }
 
     @Override
@@ -95,10 +63,10 @@ public class ProductoServiceImpl implements ProductoService {
         if (imagenFile != null && !imagenFile.isEmpty()) {
             // Eliminar la imagen anterior si existe
             if (producto.getImagenUrl() != null && !producto.getImagenUrl().isEmpty()) {
-                eliminarImagenAnterior(producto.getImagenUrl());
+                s3ImageService.deleteImage(producto.getImagenUrl());
             }
-            // Guardar la nueva imagen
-            String nuevaImagenUrl = guardarImagenProducto(imagenFile);
+            // Subir la nueva imagen
+            String nuevaImagenUrl = s3ImageService.uploadProductImage(imagenFile);
             producto.setImagenUrl(nuevaImagenUrl);
         }
 
@@ -120,20 +88,5 @@ public class ProductoServiceImpl implements ProductoService {
         
         // Nota: No eliminamos la imagen ni el registro, solo lo marcamos como no disponible
         // Esto evita problemas con claves foráneas y preserva el historial de pedidos
-    }
-
-    private void eliminarImagenAnterior(String imagenUrl) {
-        try {
-            if (imagenUrl != null && imagenUrl.startsWith("/uploads/productos/")) {
-                String filename = imagenUrl.substring("/uploads/productos/".length());
-                Path imagePath = Paths.get(UPLOAD_DIR_PRODUCTOS + filename);
-                if (Files.exists(imagePath)) {
-                    Files.delete(imagePath);
-                }
-            }
-        } catch (IOException e) {
-            // Log del error pero no fallar la operación principal
-            System.err.println("Error al eliminar imagen anterior: " + e.getMessage());
-        }
     }
 }

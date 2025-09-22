@@ -9,16 +9,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,8 +25,7 @@ public class VendedorServiceImpl implements VendedorService {
     @Autowired private ProductoRepository productoRepository;
     @Autowired private CategoriaOpcionRepository categoriaOpcionRepository;
     @Autowired private OpcionRepository opcionRepository;
-
-    private final Path rootLocation = Paths.get("uploads");
+    @Autowired private S3ImageService s3ImageService;
 
     @Override
     public Optional<Tienda> findTiendaByVendedor(Usuario vendedor) {
@@ -51,7 +45,7 @@ public class VendedorServiceImpl implements VendedorService {
         nuevaTienda.setVendedor(vendedor);
 
         if (logoFile != null && !logoFile.isEmpty()) {
-            String logoUrl = storeFile(logoFile);
+            String logoUrl = s3ImageService.uploadStoreImage(logoFile);
             nuevaTienda.setLogoUrl(logoUrl);
         }
         
@@ -74,7 +68,7 @@ public class VendedorServiceImpl implements VendedorService {
         tienda.setDescripcion(updateDTO.getDescripcion());
 
         if (logoFile != null && !logoFile.isEmpty()) {
-            String logoUrl = storeFile(logoFile);
+            String logoUrl = s3ImageService.uploadStoreImage(logoFile);
             tienda.setLogoUrl(logoUrl);
         }
         return tiendaRepository.save(tienda);
@@ -156,22 +150,6 @@ public class VendedorServiceImpl implements VendedorService {
         productoRepository.save(producto);
     }
     
-    private String storeFile(MultipartFile file) {
-        try {
-            if (file.isEmpty()) {
-                throw new RuntimeException("No se puede guardar un archivo vacío.");
-            }
-            if (!Files.exists(rootLocation)) {
-                Files.createDirectories(rootLocation);
-            }
-            String filename = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-            Files.copy(file.getInputStream(), this.rootLocation.resolve(filename));
-            return "/uploads/" + filename;
-        } catch (IOException e) {
-            throw new RuntimeException("Error al guardar el archivo.", e);
-        }
-    }
-
     private PedidoVendedorDTO convertirAPedidoVendedorDTO(Pedido pedido) {
         PedidoVendedorDTO dto = new PedidoVendedorDTO();
         dto.setId(pedido.getId());

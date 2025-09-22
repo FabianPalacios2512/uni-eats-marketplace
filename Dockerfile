@@ -1,29 +1,32 @@
-# Etapa 1: Compilar el proyecto con Maven y Java 17
-FROM maven:3.9-eclipse-temurin-17 AS build
+# 🚀 DOCKERFILE OPTIMIZADO PARA RENDER
+# Etapa 1: Compilar el proyecto con Maven y Java 21
+FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /workspace/app
 
+# Copiamos archivos de Maven
 COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
+
+# Descargamos dependencias (esto se cachea)
+RUN ./mvnw dependency:go-offline -B
+
+# Copiamos código fuente
 COPY src ./src
 
-# --- ¡LA LÍNEA CLAVE QUE ARREGLA EL ERROR! ---
-# Le damos permiso de ejecución al script de Maven.
-RUN chmod +x mvnw
+# Compilamos el proyecto
+RUN chmod +x mvnw && ./mvnw clean package -DskipTests -B
 
-# Usamos -B para modo batch y -DskipTests para acelerar
-RUN ./mvnw -B package -DskipTests
-
-# Etapa 2: Crear la imagen final de ejecución
-FROM eclipse-temurin:17-jre
+# Etapa 2: Imagen final optimizada
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# Copiamos el archivo .jar compilado desde la etapa anterior
+# Copiamos el JAR compilado
 COPY --from=build /workspace/app/target/*.jar app.jar
 
-# Expone el puerto 8080 para que el servidor de AWS sepa a dónde dirigir el tráfico
-EXPOSE 8080
+# Render usa el puerto que asigna en la variable $PORT
+EXPOSE $PORT
 
-# El comando de arranque simple y robusto
-ENTRYPOINT ["java", "-jar","/app/app.jar"]
+# Comando optimizado para Render
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/app/app.jar"]

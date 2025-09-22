@@ -1,0 +1,39 @@
+# 🚀 DOCKERIGNORE PARA RENDER - BUILD MÁS RÁPIDO
+
+# Directorios de build
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Archivos temporales
+*.tmp
+*.swp
+*.bak
+
+# Git
+.git/
+.gitignore
+
+# Documentación
+README.md
+HELP.md
+
+# Uploads (estos se subirán después)
+uploads/
+
+# Node modules (si los hay)
+node_modules/

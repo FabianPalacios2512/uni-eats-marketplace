@@ -197,14 +197,22 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         },
 
-        // Verifica si el caché es válido (ajustado para ngrok)
+        // Verifica si el caché es válido (optimizado para nube)
         isCacheValid() {
             if (!State.pedidosCache.data) return false;
             
-            const isNgrok = location.host.includes('ngrok');
-            const cacheTimeout = isNgrok ? 8000 : 15000; // 8s para ngrok, 15s para local
+            const isCloud = !location.host.includes('localhost') && !location.host.includes('127.0.0.1');
             
-            return (Date.now() - State.pedidosCache.lastUpdate) < cacheTimeout;
+            // En la nube, usar caché más corto para detección rápida
+            const cacheTimeout = isCloud ? 5000 : 15000; // 5s en nube, 15s local
+            
+            const isValid = (Date.now() - State.pedidosCache.lastUpdate) < cacheTimeout;
+            
+            if (!isValid) {
+                console.log(`🔄 Caché expirado (${cacheTimeout}ms) - solicitando datos frescos`);
+            }
+            
+            return isValid;
         },
 
         // Obtiene pedidos con caché inteligente
@@ -257,14 +265,24 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         },
 
-        // Detecta cambios de estado y notifica
+        // Detecta cambios de estado y notifica INMEDIATAMENTE
         notifyStatusChanges(oldData, newData) {
             const oldMap = new Map(oldData.map(p => [p.id, p.estado]));
             
             newData.forEach(pedido => {
                 const oldStatus = oldMap.get(pedido.id);
                 if (oldStatus && oldStatus !== pedido.estado) {
+                    console.log(`🔔 CAMBIO DETECTADO: Pedido #${pedido.id} cambió de ${oldStatus} → ${pedido.estado}`);
+                    
+                    // 🎯 Notificación INMEDIATA al usuario
                     this.showStatusNotification(pedido);
+                    
+                    // 🔄 Si estamos en la vista de pedidos, refrescar inmediatamente
+                    if (State.vistaActual === 'misPedidos') {
+                        setTimeout(() => {
+                            Views.refreshPedidosView();
+                        }, 1000); // Pequeño delay para que se vea la notificación
+                    }
                 }
             });
         },
@@ -381,17 +399,32 @@ document.addEventListener("DOMContentLoaded", () => {
         start() {
             if (State.polling.isActive) return;
             
+            console.log('🔄 Iniciando polling automático para notificaciones en tiempo real...');
             State.polling.isActive = true;
             
             State.polling.interval = setInterval(async () => {
                 try {
-                    // Solo hacer polling si estamos en la vista de pedidos
+                    console.log(`🔄 Polling ejecutándose (cada ${State.polling.frequency}ms)`);
+                    
+                    // 🎯 SIEMPRE ejecutar polling para detectar cambios (incluso en background)
+                    const nuevosPedidos = await SmartCache.getMisPedidosOptimized();
+                    
+                    // Si estamos en la vista de pedidos, actualizar automáticamente la vista
                     if (State.vistaActual === 'misPedidos') {
-                        const pedidos = await SmartCache.getMisPedidosOptimized();
+                        console.log('🔄 Actualizando vista de pedidos automáticamente');
                         Views.refreshPedidosView();
                     }
+                    
+                    // Ajustar frecuencia según pedidos activos
+                    const hasActivePedidos = nuevosPedidos.some(p => 
+                        ['PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_RECOGER'].includes(p.estado)
+                    );
+                    SmartPolling.adjustFrequency(hasActivePedidos);
+                    
                 } catch (error) {
                     console.error('❌ Error en polling:', error);
+                    // En caso de error, continuar pero reducir frecuencia
+                    SmartPolling.adjustFrequency(false);
                 }
             }, State.polling.frequency);
         },
@@ -404,14 +437,41 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         },
 
-        // Ajusta frecuencia según la actividad
+        // Ajusta frecuencia según la actividad y la vista actual
         adjustFrequency(hasActivePedidos) {
-            // Para ngrok, usar frecuencias más lentas para compensar latencia
-            const isNgrok = location.host.includes('ngrok');
-            const baseFrequency = isNgrok ? 5000 : 3000; // 5s para ngrok, 3s para local
-            const slowFrequency = isNgrok ? 15000 : 10000; // 15s para ngrok, 10s para local
+            // Para nube (Render), usar frecuencias optimizadas para detección rápida
+            const isCloud = !location.host.includes('localhost') && !location.host.includes('127.0.0.1');
+            const isInPedidosView = State.vistaActual === 'misPedidos';
             
-            const newFrequency = hasActivePedidos ? baseFrequency : slowFrequency;
+            let newFrequency;
+            
+            if (isCloud) {
+                // 🌐 EN LA NUBE: Frecuencias optimizadas para detección inmediata
+                if (isInPedidosView && hasActivePedidos) {
+                    newFrequency = 3000; // 3 segundos - muy activo
+                } else if (hasActivePedidos) {
+                    newFrequency = 5000; // 5 segundos - background con pedidos activos
+                } else {
+                    newFrequency = 15000; // 15 segundos - sin pedidos activos
+                }
+            } else {
+                // 🏠 LOCAL: Frecuencias conservadoras
+                if (isInPedidosView && hasActivePedidos) {
+                    newFrequency = 5000; // 5 segundos
+                } else if (hasActivePedidos) {
+                    newFrequency = 10000; // 10 segundos
+                } else {
+                    newFrequency = 20000; // 20 segundos
+                }
+            }
+            
+            console.log(`📊 Ajustando frecuencia de polling:`, {
+                'Es nube': isCloud,
+                'Vista actual': State.vistaActual,
+                'En vista pedidos': isInPedidosView,
+                'Pedidos activos': hasActivePedidos,
+                'Nueva frecuencia': `${newFrequency}ms`
+            });
             
             if (newFrequency !== State.polling.frequency) {
                 State.polling.frequency = newFrequency;
@@ -732,7 +792,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         },
 
-        // 🔔 Inicializar notificaciones para la vista de pedidos
+        // 🔔 Inicializar notificaciones para la vista de pedidos (más inteligente)
         async initNotificationsForPedidos() {
             console.log('🔔 Inicializando notificaciones...');
             console.log('Hostname:', window.location.hostname);
@@ -744,11 +804,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const initialized = await WebNotifications.init();
             console.log('WebNotifications initialized:', initialized);
             
-            // Solo mostrar prompt si debería y no se ha mostrado recientemente
-            if (WebNotifications.shouldShowPermissionPrompt() && 
-                State.notifications.permission === 'default') {
-                
-                console.log('📝 Debería mostrar prompt de permisos...');
+            // 🎯 NUEVO: Solo mostrar prompt si ya no hay un flujo post-pedido activo
+            // Y si debería mostrarse según la lógica anterior
+            const shouldPrompt = WebNotifications.shouldShowPermissionPrompt() && 
+                                State.notifications.permission === 'default' &&
+                                !this.hasRecentOrder();
+            
+            if (shouldPrompt) {
+                console.log('📝 Mostrando prompt de permisos (no hay pedido reciente)...');
                 
                 // Esperar un poco para que la vista se cargue completamente
                 setTimeout(async () => {
@@ -759,13 +822,23 @@ document.addEventListener("DOMContentLoaded", () => {
                         console.log('🔔 Notificaciones activadas correctamente');
                     }
                     WebNotifications.markPermissionPromptShown();
-                }, 2000); // 2 segundos después de cargar la vista
+                }, 2000);
             } else {
                 console.log('❌ No se mostrará prompt:', {
                     shouldShow: WebNotifications.shouldShowPermissionPrompt(),
-                    permission: State.notifications.permission
+                    permission: State.notifications.permission,
+                    hasRecentOrder: this.hasRecentOrder()
                 });
             }
+        },
+
+        // Verificar si hay un pedido reciente (últimos 2 minutos)
+        hasRecentOrder() {
+            const lastOrderTime = localStorage.getItem('last-order-time');
+            if (!lastOrderTime) return false;
+            
+            const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
+            return parseInt(lastOrderTime) > twoMinutesAgo;
         },
 
         async render(view, params = null) {
@@ -780,9 +853,12 @@ document.addEventListener("DOMContentLoaded", () => {
             this.renderSkeleton(view);
 
             try {
-                // Detener polling si cambiamos de vista
-                if (view !== 'misPedidos') {
-                    SmartPolling.stop();
+                // 🔄 MANTENER POLLING ACTIVO EN BACKGROUND
+                // Solo detener si no hay pedidos activos o si no se ha inicializado
+                if (view !== 'misPedidos' && State.polling.isActive) {
+                    console.log('📊 Manteniendo polling en background para notificaciones');
+                    // NO detenemos el polling, solo ajustamos frecuencia para ser más eficiente
+                    SmartPolling.adjustFrequency(false); // Menos frecuente cuando no estamos en la vista
                 }
 
                 switch (view) {
@@ -1050,7 +1126,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 html += `<h2 class="text-lg font-bold text-slate-700 mt-4 mb-2">${nombreCat}</h2><div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                         ${prodsCat.map(p => `
                             <div class="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition duration-200 hover:scale-105" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
-                            <img src="${p.imagenUrl || 'https://via.placeholder.com/300'}" class="w-full h-24 object-cover">
+                            <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk3YTNiNCI+8J+NvUNvbWlkYTwvdGV4dD48L3N2Zz4='" class="w-full h-24 object-cover">
                             <div class="p-3"><h3 class="font-semibold text-sm text-slate-800 truncate">${p.nombre}</h3><p class="text-xs text-slate-500">${p.tienda.nombre}</p><p class="font-bold text-indigo-600 mt-1">${this.formatPrice(p.precio, false)}</p></div>
                         </div>`).join('')}
                 </div>`;
@@ -1078,7 +1154,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div></div>`).join('');
 
             return `<div class="bg-white rounded-t-2xl shadow-lg -m-4">
-                        <img src="${producto.imagenUrl || 'https://via.placeholder.com/400x200'}" class="w-full h-48 object-cover rounded-t-2xl">
+                        <img src="${producto.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cHJvZHVjdG8ubm9tYnJlfTwvdGV4dD48L3N2Zz4='" class="w-full h-48 object-cover rounded-t-2xl">
                         <div class="p-4"><h2 class="font-bold text-2xl">${producto.nombre}</h2><p class="text-slate-600 mt-1">${producto.descripcion}</p></div>
                     </div>
                     <div class="p-4">${opcionesHtml}</div>
@@ -1392,7 +1468,7 @@ getCategoryBarHTML() {
                         <div class="group cursor-pointer" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
                             <div class="bg-white rounded-2xl overflow-hidden shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:-translate-y-2 border border-gray-100">
                                 <div class="relative">
-                                    <img src="${p.imagenUrl || 'https://via.placeholder.com/120'}" class="w-full h-20 object-cover">
+                                    <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjgwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiNlMmU4ZjAiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTdhM2I0Ij7wn42dPC90ZXh0Pjwvc3ZnPg=='" class="w-full h-20 object-cover">
                                     <div class="absolute top-2 right-2 w-6 h-6 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg">
                                         <i class="fas fa-heart text-gray-400 text-xs hover:text-red-500 transition-colors"></i>
                                     </div>
@@ -1444,7 +1520,39 @@ getCategoryBarHTML() {
             const vistaGuardada = State.vistaActual || 'inicio';
             Views.render(vistaGuardada);
             
-            // 🔔 Listener para mensajes del Service Worker
+            // � INICIALIZAR POLLING AUTOMÁTICO EN LA NUBE
+            // Solo si no es localhost (en desarrollo local puede ser molesto)
+            const isCloud = !location.host.includes('localhost') && !location.host.includes('127.0.0.1');
+            if (isCloud) {
+                console.log('🌐 Estamos en la nube - inicializando polling automático para notificaciones');
+                
+                // Dar tiempo a que se cargue la vista, luego iniciar polling
+                setTimeout(async () => {
+                    try {
+                        // Verificar si hay pedidos activos antes de iniciar
+                        const pedidosIniciales = await Api.getMisPedidos();
+                        const hasActivePedidos = pedidosIniciales.some(p => 
+                            ['PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_RECOGER'].includes(p.estado)
+                        );
+                        
+                        if (hasActivePedidos) {
+                            console.log('✅ Pedidos activos detectados - iniciando polling');
+                            SmartPolling.adjustFrequency(true);
+                            SmartPolling.start();
+                        } else {
+                            console.log('📊 Sin pedidos activos - polling en modo background');
+                            SmartPolling.adjustFrequency(false);
+                            SmartPolling.start();
+                        }
+                    } catch (error) {
+                        console.error('❌ Error al inicializar polling automático:', error);
+                    }
+                }, 2000); // 2 segundos después de cargar
+            } else {
+                console.log('🏠 Entorno local - polling manual');
+            }
+            
+            // �🔔 Listener para mensajes del Service Worker
             navigator.serviceWorker?.addEventListener('message', (event) => {
                 if (event.data?.type === 'NAVIGATE_TO_PEDIDOS') {
                     Views.render('misPedidos');
@@ -1515,16 +1623,137 @@ getCategoryBarHTML() {
 
             try {
                 await Api.crearPedido(dto);
+                
+                // 🕒 Marcar timestamp del pedido para flujo de notificaciones
+                localStorage.setItem('last-order-time', Date.now().toString());
+                
                 Toast.show("¡Pedido realizado con éxito!", 'success');
                 State.carrito = [];
                 State.tiendaActual = null;
                 Views.renderFloatingCartButton();
+                
+                // 🔔 NUEVO FLUJO: Verificar permisos DESPUÉS del pedido exitoso
+                await this.handlePostOrderNotificationPermissions();
+                
                 Views.render('misPedidos');
             } catch (error) {
                 Toast.show(`Error: ${error.message}`, 'error');
                 boton.disabled = false;
                 boton.innerHTML = 'Confirmar Pedido';
             }
+        },
+
+        // 🔔 Manejar permisos de notificaciones después de un pedido exitoso
+        async handlePostOrderNotificationPermissions() {
+            console.log('🔔 Verificando permisos post-pedido...');
+            
+            // Solo en HTTPS (producción)
+            if (location.protocol !== 'https:') {
+                console.log('❌ No HTTPS - saltando verificación de permisos');
+                return;
+            }
+
+            // Verificar si ya tiene permisos
+            const currentPermission = Notification.permission;
+            console.log('🔐 Permisos actuales:', currentPermission);
+            
+            if (currentPermission === 'granted') {
+                console.log('✅ Ya tiene permisos - continuando normal');
+                return;
+            }
+            
+            if (currentPermission === 'denied') {
+                console.log('❌ Permisos denegados permanentemente');
+                return;
+            }
+            
+            // Si no ha decidido (default), mostrar modal educativo
+            if (currentPermission === 'default') {
+                console.log('🎯 Mostrando modal post-pedido para permisos');
+                await this.showPostOrderNotificationModal();
+            }
+        },
+
+        // 🎉 Modal específico después de realizar pedido
+        async showPostOrderNotificationModal() {
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4';
+                modal.innerHTML = `
+                    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl transform scale-95 transition-transform duration-300">
+                        <div class="text-center">
+                            <div class="w-20 h-20 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-check text-3xl text-white"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-2">¡Pedido Confirmado! 🎉</h3>
+                            <p class="text-slate-600 mb-4 text-sm leading-relaxed">
+                                Tu pedido está siendo procesado. 
+                            </p>
+                            
+                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 mb-6">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <i class="fas fa-bell text-blue-600"></i>
+                                    <span class="font-bold text-blue-800">¿Quieres notificaciones?</span>
+                                </div>
+                                <p class="text-blue-700 text-xs leading-relaxed">
+                                    Te avisaremos cuando tu pedido esté listo, 
+                                    incluso si cierras la app 📱
+                                </p>
+                            </div>
+                            
+                            <div class="flex gap-3">
+                                <button id="skip-notif" class="flex-1 bg-slate-100 text-slate-700 py-3 px-4 rounded-2xl font-medium hover:bg-slate-200 transition-colors text-sm">
+                                    Continuar sin avisos
+                                </button>
+                                <button id="enable-notif" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-2xl font-medium hover:from-blue-700 hover:to-indigo-700 transition-colors text-sm">
+                                    ¡Sí, avísame! 🔔
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(modal);
+                
+                // Animar entrada
+                setTimeout(() => {
+                    modal.querySelector('.bg-white').style.transform = 'scale(1)';
+                }, 100);
+
+                // Handler para activar notificaciones
+                modal.querySelector('#enable-notif').onclick = async () => {
+                    console.log('✅ Usuario quiere activar notificaciones post-pedido');
+                    modal.remove();
+                    
+                    // Solicitar permisos
+                    try {
+                        const permission = await Notification.requestPermission();
+                        console.log('📱 Resultado permisos:', permission);
+                        
+                        if (permission === 'granted') {
+                            Toast.show('🔔 ¡Notificaciones activadas! Te avisaremos sobre tu pedido', 'success');
+                            State.notifications.permission = permission;
+                            
+                            // Inicializar notificaciones web
+                            await WebNotifications.init();
+                        } else {
+                            Toast.show('ℹ️ Puedes activar las notificaciones desde la configuración del navegador', 'error');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error al solicitar permisos:', error);
+                        Toast.show('❌ Error al activar notificaciones', 'error');
+                    }
+                    
+                    resolve(true);
+                };
+
+                // Handler para saltar
+                modal.querySelector('#skip-notif').onclick = () => {
+                    console.log('⏭️ Usuario saltó notificaciones post-pedido');
+                    modal.remove();
+                    resolve(false);
+                };
+            });
         }
     };
 

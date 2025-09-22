@@ -22,12 +22,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Estado global de la aplicación
     const State = {
-        vistaActual: null,
+        vistaActual: localStorage.getItem('uni-eats-vista') || null,
         tiendaActual: null,
         productoSeleccionado: null,
         carrito: [],
         csrfToken: document.querySelector("meta[name='_csrf']")?.getAttribute("content"),
         csrfHeader: document.querySelector("meta[name='_csrf_header']")?.getAttribute("content"),
+        // Nuevo sistema de caché y notificaciones
+        pedidosCache: {
+            data: null,
+            lastUpdate: null,
+            hash: null
+        },
+        polling: {
+            interval: null,
+            isActive: false,
+            frequency: 3000 // 3 segundos inicial
+        },
+        notifications: {
+            audio: new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+L2wHEiBC6B2f3rgIoNOjl6'),
+            permission: 'default', // 'default', 'granted', 'denied'
+            isSupported: 'Notification' in window,
+            serviceWorkerReady: false
+        }
     };
 
     // Módulo para todas las interacciones con el backend
@@ -55,6 +72,622 @@ document.addEventListener("DOMContentLoaded", () => {
         crearPedido: (dto) => Api._fetch('/api/pedidos/crear', { method: 'POST', body: JSON.stringify(dto) }),
     };
 
+    // 🔔 Sistema de Notificaciones y Caché Inteligente
+    const SmartCache = {
+        // Genera hash para detectar cambios en los datos
+        generateHash(data) {
+            return btoa(JSON.stringify(data)).slice(0, 16);
+        },
+
+        // Verifica si los datos han cambiado
+        hasDataChanged(newData) {
+            const newHash = this.generateHash(newData);
+            return State.pedidosCache.hash !== newHash;
+        },
+
+        // Guarda datos en caché con timestamp
+        saveToCache(data) {
+            const hash = this.generateHash(data);
+            State.pedidosCache = {
+                data: data,
+                lastUpdate: Date.now(),
+                hash: hash
+            };
+        },
+
+        // 🔄 Persistir estado en localStorage para detectar cambios entre recargas
+        saveToLocalStorage(pedidos) {
+            const pedidosState = {};
+            pedidos.forEach(pedido => {
+                pedidosState[pedido.id] = {
+                    estado: pedido.estado,
+                    nombreTienda: pedido.nombreTienda,
+                    total: pedido.total,
+                    lastSeen: Date.now()
+                };
+            });
+            
+            localStorage.setItem('uni-eats-pedidos-state', JSON.stringify(pedidosState));
+        },
+
+        // 🔄 Comparar con estado anterior y notificar cambios
+        async checkForChangesOnRefresh(currentPedidos) {
+            try {
+                const previousStateJson = localStorage.getItem('uni-eats-pedidos-state');
+                if (!previousStateJson) {
+                    this.saveToLocalStorage(currentPedidos);
+                    return;
+                }
+
+                const previousState = JSON.parse(previousStateJson);
+
+                // Detectar cambios de estado
+                const changes = [];
+                currentPedidos.forEach(pedido => {
+                    const prevPedido = previousState[pedido.id];
+                    if (prevPedido && prevPedido.estado !== pedido.estado) {
+                        changes.push({
+                            id: pedido.id,
+                            previousState: prevPedido.estado,
+                            newState: pedido.estado,
+                            nombreTienda: pedido.nombreTienda
+                        });
+                    }
+                });
+
+                // Enviar notificaciones por cada cambio detectado
+                if (changes.length > 0) {
+                    console.log('🔔 Cambios de estado detectados:', changes.length);
+                    
+                    for (const change of changes) {
+                        await this.showRefreshNotification(change);
+                        // Pequeña pausa entre notificaciones
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+
+                // Guardar nuevo estado
+                this.saveToLocalStorage(currentPedidos);
+
+            } catch (error) {
+                console.error('❌ Error al verificar cambios:', error);
+                // En caso de error, guardar estado actual
+                this.saveToLocalStorage(currentPedidos);
+            }
+        },
+
+        // 🔔 Mostrar notificación específica para cambios detectados en refresh
+        async showRefreshNotification(change) {
+            const stateMessages = {
+                'PENDIENTE': '⏳ Tu pedido está esperando aprobación',
+                'EN_PREPARACION': '👨‍🍳 ¡Tu pedido se está preparando!',
+                'LISTO_PARA_RECOGER': '🎉 ¡Tu pedido está listo para recoger!',
+                'COMPLETADO': '🎊 ¡Pedido entregado exitosamente!',
+                'CANCELADO': '❌ Tu pedido fue cancelado'
+            };
+
+            const message = stateMessages[change.newState] || 'Estado actualizado';
+            
+            // 🔔 Enviar notificación web nativa del sistema
+            await WebNotifications.sendNativeNotification(
+                `${message}`,
+                {
+                    body: `Pedido #${change.id} de ${change.nombreTienda}`,
+                    data: { pedidoId: change.id, estado: change.newState }
+                }
+            );
+
+            // Mostrar toast interno también
+            const toastMessage = `${message} - Pedido #${change.id}`;
+            if (change.newState === 'COMPLETADO') {
+                this.showCompletionCelebration({
+                    id: change.id,
+                    nombreTienda: change.nombreTienda,
+                    estado: change.newState
+                }, toastMessage);
+            } else {
+                this.showToast(toastMessage);
+            }
+            
+            // Sonido y vibración
+            State.notifications.audio.play().catch(() => {});
+            if (navigator.vibrate) {
+                const vibrationPattern = change.newState === 'COMPLETADO' ? [200, 100, 200, 100, 200] : [200, 100, 200];
+                navigator.vibrate(vibrationPattern);
+            }
+        },
+
+        // Verifica si el caché es válido (ajustado para ngrok)
+        isCacheValid() {
+            if (!State.pedidosCache.data) return false;
+            
+            const isNgrok = location.host.includes('ngrok');
+            const cacheTimeout = isNgrok ? 8000 : 15000; // 8s para ngrok, 15s para local
+            
+            return (Date.now() - State.pedidosCache.lastUpdate) < cacheTimeout;
+        },
+
+        // Obtiene pedidos con caché inteligente
+        async getMisPedidosOptimized() {
+            try {
+                // SIEMPRE hacer petición en la primera carga de la vista para detectar cambios
+                const isFirstLoad = !State.pedidosCache.data;
+                const shouldForceRefresh = isFirstLoad || !this.isCacheValid();
+                
+                if (!shouldForceRefresh) {
+                    return State.pedidosCache.data;
+                }
+
+                // Solicitar nuevos datos
+                const newData = await Api.getMisPedidos();
+                
+                // Filtrar pedidos activos solamente
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                
+                const activeOrders = newData.filter(pedido => {
+                    if (['COMPLETADO', 'CANCELADO'].includes(pedido.estado)) {
+                        return false;
+                    }
+                    
+                    const orderDate = new Date(pedido.fechaCreacion);
+                    return orderDate >= thirtyDaysAgo || 
+                           ['PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_RECOGER'].includes(pedido.estado);
+                });
+
+                // Verificar cambios contra localStorage (funciona con refresh)
+                await this.checkForChangesOnRefresh(activeOrders);
+
+                // Verificar cambios en memoria también (para polling si está activo)
+                if (State.pedidosCache.data && this.hasDataChanged(activeOrders)) {
+                    this.notifyStatusChanges(State.pedidosCache.data, activeOrders);
+                }
+
+                // Guardar en caché
+                this.saveToCache(activeOrders);
+                
+                return activeOrders;
+
+            } catch (error) {
+                console.error('Error al cargar pedidos:', error);
+                
+                // Devolver caché si hay error y tenemos datos
+                const fallbackData = State.pedidosCache.data || [];
+                return fallbackData;
+            }
+        },
+
+        // Detecta cambios de estado y notifica
+        notifyStatusChanges(oldData, newData) {
+            const oldMap = new Map(oldData.map(p => [p.id, p.estado]));
+            
+            newData.forEach(pedido => {
+                const oldStatus = oldMap.get(pedido.id);
+                if (oldStatus && oldStatus !== pedido.estado) {
+                    this.showStatusNotification(pedido);
+                }
+            });
+        },
+
+        // Muestra notificación de cambio de estado
+        async showStatusNotification(pedido) {
+            const statusMessages = {
+                'PENDIENTE': '⏳ Tu pedido está en espera de aprobación',
+                'EN_PREPARACION': '👨‍🍳 ¡Tu pedido se está preparando!',
+                'LISTO_PARA_RECOGER': '🎉 ¡Tu pedido está listo para recoger!',
+                'COMPLETADO': '🎊 ¡Pedido entregado exitosamente! Gracias por tu compra',
+                'CANCELADO': '❌ Tu pedido fue cancelado'
+            };
+
+            const message = statusMessages[pedido.estado] || 'Estado actualizado';
+            
+            // 🔔 Enviar notificación web nativa del sistema
+            await WebNotifications.notifyStatusChange(pedido);
+            
+            // Notificación especial para pedidos completados
+            if (pedido.estado === 'COMPLETADO') {
+                this.showCompletionCelebration(pedido, message);
+            } else {
+                this.showToast(`${message} - Pedido #${pedido.id}`);
+            }
+            
+            // Sonido de notificación
+            State.notifications.audio.play().catch(() => {});
+            
+            // Vibración en móviles
+            if (navigator.vibrate) {
+                const vibrationPattern = pedido.estado === 'COMPLETADO' ? [200, 100, 200, 100, 200] : [200, 100, 200];
+                navigator.vibrate(vibrationPattern);
+            }
+        },
+
+        // Celebración especial para pedidos completados
+        showCompletionCelebration(pedido, message) {
+            // Notificación más grande y celebratoria
+            const existingToast = document.getElementById('completion-celebration');
+            if (existingToast) existingToast.remove();
+
+            const celebration = document.createElement('div');
+            celebration.id = 'completion-celebration';
+            celebration.className = 'fixed top-16 left-4 right-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-3xl shadow-2xl z-50 transform translate-y-[-150px] transition-all duration-500';
+            celebration.innerHTML = `
+                <div class="text-center">
+                    <div class="text-4xl mb-3 animate-bounce">🎊✨🎉</div>
+                    <h3 class="text-lg font-bold mb-2">${message}</h3>
+                    <p class="text-green-100 text-sm mb-3">Pedido #${pedido.id} de ${pedido.nombreTienda}</p>
+                    <div class="flex justify-center gap-2">
+                        <div class="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                        <div class="w-2 h-2 bg-white rounded-full animate-ping" style="animation-delay: 0.2s"></div>
+                        <div class="w-2 h-2 bg-white rounded-full animate-ping" style="animation-delay: 0.4s"></div>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="mt-4 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-2xl text-sm font-medium transition-colors">
+                        ¡Genial! 👍
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(celebration);
+            
+            // Animar entrada
+            setTimeout(() => {
+                celebration.style.transform = 'translate-y-0';
+            }, 100);
+            
+            // Auto-remover después de 8 segundos (más tiempo para celebración)
+            setTimeout(() => {
+                celebration.style.transform = 'translate-y-[-150px]';
+                setTimeout(() => celebration.remove(), 500);
+            }, 8000);
+        },
+
+        // Muestra toast notification
+        showToast(message) {
+            // Remover toast anterior si existe
+            const existingToast = document.getElementById('status-toast');
+            if (existingToast) existingToast.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'status-toast';
+            toast.className = 'fixed top-20 left-4 right-4 bg-indigo-600 text-white p-4 rounded-2xl shadow-2xl z-50 transform translate-y-[-100px] transition-all duration-300';
+            toast.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                        <i class="fas fa-bell text-sm"></i>
+                    </div>
+                    <p class="flex-1 font-medium">${message}</p>
+                    <button onclick="this.parentElement.parentElement.remove()" class="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                        <i class="fas fa-times text-xs"></i>
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Animar entrada
+            setTimeout(() => {
+                toast.style.transform = 'translate-y-0';
+            }, 100);
+            
+            // Auto-remover después de 4 segundos
+            setTimeout(() => {
+                toast.style.transform = 'translate-y-[-100px]';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    };
+
+    // 🔄 Sistema de Polling Inteligente
+    const SmartPolling = {
+        start() {
+            if (State.polling.isActive) return;
+            
+            State.polling.isActive = true;
+            
+            State.polling.interval = setInterval(async () => {
+                try {
+                    // Solo hacer polling si estamos en la vista de pedidos
+                    if (State.vistaActual === 'misPedidos') {
+                        const pedidos = await SmartCache.getMisPedidosOptimized();
+                        Views.refreshPedidosView();
+                    }
+                } catch (error) {
+                    console.error('❌ Error en polling:', error);
+                }
+            }, State.polling.frequency);
+        },
+
+        stop() {
+            if (State.polling.interval) {
+                clearInterval(State.polling.interval);
+                State.polling.interval = null;
+                State.polling.isActive = false;
+            }
+        },
+
+        // Ajusta frecuencia según la actividad
+        adjustFrequency(hasActivePedidos) {
+            // Para ngrok, usar frecuencias más lentas para compensar latencia
+            const isNgrok = location.host.includes('ngrok');
+            const baseFrequency = isNgrok ? 5000 : 3000; // 5s para ngrok, 3s para local
+            const slowFrequency = isNgrok ? 15000 : 10000; // 15s para ngrok, 10s para local
+            
+            const newFrequency = hasActivePedidos ? baseFrequency : slowFrequency;
+            
+            if (newFrequency !== State.polling.frequency) {
+                State.polling.frequency = newFrequency;
+                if (State.polling.isActive) {
+                    this.stop();
+                    this.start();
+                }
+            }
+        }
+    };
+
+    // 🔔 Sistema de Notificaciones Web Push
+    const WebNotifications = {
+        async init() {
+            console.log('🔧 Iniciando WebNotifications...');
+            
+            // Verificar soporte de notificaciones
+            if (!State.notifications.isSupported) {
+                console.log('❌ Las notificaciones no están soportadas en este navegador');
+                return false;
+            }
+
+            console.log('✅ Notificaciones soportadas');
+
+            // Verificar estado de permisos
+            State.notifications.permission = Notification.permission;
+            console.log('🔐 Estado de permisos:', State.notifications.permission);
+            
+            // Inicializar service worker si está disponible
+            if ('serviceWorker' in navigator) {
+                try {
+                    console.log('🔄 Verificando Service Worker...');
+                    const registration = await navigator.serviceWorker.ready;
+                    State.notifications.serviceWorkerReady = true;
+                    console.log('✅ Service Worker listo para notificaciones');
+                } catch (error) {
+                    console.log('❌ Service Worker no disponible:', error);
+                }
+            } else {
+                console.log('❌ Service Worker no soportado');
+            }
+
+            return true;
+        },
+
+        async requestPermission() {
+            console.log('🔔 requestPermission llamado');
+            console.log('isSupported:', State.notifications.isSupported);
+            console.log('current permission:', State.notifications.permission);
+            console.log('🔍 User Agent:', navigator.userAgent);
+            console.log('🔍 Is HTTPS:', location.protocol === 'https:');
+            console.log('🔍 Host:', location.host);
+            console.log('🔍 Notification API exists:', 'Notification' in window);
+            
+            if (!State.notifications.isSupported) {
+                console.log('❌ Notificaciones no soportadas');
+                return false;
+            }
+
+            if (State.notifications.permission === 'granted') {
+                console.log('✅ Ya tenemos permisos');
+                this.showPermissionGrantedMessage();
+                return true;
+            }
+
+            if (State.notifications.permission === 'denied') {
+                console.log('❌ Permisos denegados previamente');
+                this.showPermissionDeniedMessage();
+                return false;
+            }
+
+            // Mostrar explicación antes de solicitar permiso
+            console.log('📝 Mostrando modal de solicitud...');
+            const userWantsNotifications = await this.showPermissionRequest();
+            console.log('Usuario quiere notificaciones:', userWantsNotifications);
+            
+            if (!userWantsNotifications) {
+                console.log('❌ Usuario rechazó en el modal');
+                return false;
+            }
+
+            try {
+                console.log('🎯 Solicitando permisos del navegador...');
+                const permission = await Notification.requestPermission();
+                console.log('Resultado del navegador:', permission);
+                State.notifications.permission = permission;
+                
+                if (permission === 'granted') {
+                    this.showPermissionGrantedMessage();
+                    return true;
+                } else {
+                    this.showPermissionDeniedMessage();
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error al solicitar permisos:', error);
+                return false;
+            }
+        },
+
+        showPermissionRequest() {
+            console.log('🎨 Creando modal de permisos...');
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
+                modal.innerHTML = `
+                    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl transform scale-95 transition-transform duration-300">
+                        <div class="text-center">
+                            <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-bell text-2xl text-indigo-600"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-3">¡Mantente al día!</h3>
+                            <p class="text-slate-600 mb-6 text-sm leading-relaxed">
+                                Recibe notificaciones instantáneas sobre el estado de tus pedidos, 
+                                incluso cuando la app esté cerrada. ¡No te pierdas cuando tu comida esté lista! 🍕
+                            </p>
+                            <div class="flex gap-3">
+                                <button id="deny-notif" class="flex-1 bg-slate-100 text-slate-700 py-3 px-4 rounded-2xl font-medium hover:bg-slate-200 transition-colors">
+                                    Ahora no
+                                </button>
+                                <button id="allow-notif" class="flex-1 bg-indigo-600 text-white py-3 px-4 rounded-2xl font-medium hover:bg-indigo-700 transition-colors">
+                                    ¡Activar! 🔔
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                console.log('📱 Agregando modal al DOM...');
+                document.body.appendChild(modal);
+                
+                // Animar entrada
+                setTimeout(() => {
+                    console.log('🎬 Animando modal...');
+                    modal.querySelector('div').style.transform = 'scale-1';
+                }, 100);
+
+                modal.querySelector('#allow-notif').onclick = () => {
+                    console.log('✅ Usuario clickeó ACTIVAR');
+                    modal.remove();
+                    resolve(true);
+                };
+
+                modal.querySelector('#deny-notif').onclick = () => {
+                    console.log('❌ Usuario clickeó AHORA NO');
+                    modal.remove();
+                    resolve(false);
+                };
+            });
+        },
+
+        showPermissionGrantedMessage() {
+            SmartCache.showToast('🎉 ¡Notificaciones activadas! Te avisaremos sobre tus pedidos');
+        },
+
+        showPermissionDeniedMessage() {
+            SmartCache.showToast('ℹ️ Puedes activar las notificaciones desde la configuración del navegador');
+        },
+
+        // Enviar notificación nativa del sistema
+        async sendNativeNotification(title, options = {}) {
+            console.log('📱 sendNativeNotification llamado:', title);
+            console.log('📱 Permission actual:', State.notifications.permission);
+            
+            if (State.notifications.permission !== 'granted') {
+                console.warn('❌ Permisos no otorgados:', State.notifications.permission);
+                return;
+            }
+
+            const defaultOptions = {
+                icon: '/img/logo.png', // Usar ruta que existe
+                badge: '/img/logo.png', // Usar ruta que existe
+                tag: 'pedido-update',
+                renotify: true,
+                requireInteraction: false,
+                vibrate: [200, 100, 200],
+                silent: false
+            };
+
+            const finalOptions = { ...defaultOptions, ...options };
+            
+            // Detectar si es móvil
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            console.log('📱 Es móvil:', isMobile);
+
+            try {
+                // Usar service worker si está disponible para notificaciones persistentes
+                if (State.notifications.serviceWorkerReady && 'serviceWorker' in navigator) {
+                    console.log('📱 Usando Service Worker...');
+                    const registration = await navigator.serviceWorker.ready;
+                    await registration.showNotification(title, {
+                        ...finalOptions,
+                        actions: isMobile ? [] : [ // No acciones en móvil
+                            {
+                                action: 'view',
+                                title: 'Ver pedido'
+                            }
+                        ]
+                    });
+                    console.log('✅ Notificación enviada via Service Worker');
+                } else {
+                    console.log('📱 Usando notificación directa...');
+                    // Fallback a notificación simple (sin acciones para compatibilidad)
+                    const notificationOptions = { ...finalOptions };
+                    delete notificationOptions.actions; // Remover acciones para notificaciones directas
+                    
+                    const notification = new Notification(title, notificationOptions);
+                    
+                    // Manejar clicks
+                    notification.onclick = () => {
+                        console.log('🖱️ Notificación clickeada');
+                        window.focus();
+                        notification.close();
+                    };
+                    
+                    // Auto-cerrar después de 8 segundos en móvil, 5 en desktop
+                    setTimeout(() => {
+                        notification.close();
+                    }, isMobile ? 8000 : 5000);
+                    
+                    console.log('✅ Notificación enviada directamente');
+                }
+            } catch (error) {
+                console.error('❌ Error al enviar notificación:', error);
+                console.error('❌ Error stack:', error.stack);
+            }
+        },
+
+        // Manejar notificación de cambio de estado de pedido
+        async notifyStatusChange(pedido) {
+            const statusMessages = {
+                'PENDIENTE': {
+                    title: '⏳ Pedido en espera',
+                    body: `Tu pedido #${pedido.id} está esperando aprobación del vendedor`,
+                },
+                'EN_PREPARACION': {
+                    title: '👨‍🍳 ¡Se está preparando!',
+                    body: `Tu pedido #${pedido.id} de ${pedido.nombreTienda} está siendo preparado`,
+                },
+                'LISTO_PARA_RECOGER': {
+                    title: '🎉 ¡Pedido listo!',
+                    body: `Tu pedido #${pedido.id} está listo para recoger en ${pedido.nombreTienda}`,
+                },
+                'COMPLETADO': {
+                    title: '🎊 ¡Entregado con éxito!',
+                    body: `Pedido #${pedido.id} entregado. ¡Gracias por tu compra en ${pedido.nombreTienda}!`,
+                },
+                'CANCELADO': {
+                    title: '❌ Pedido cancelado',
+                    body: `Tu pedido #${pedido.id} ha sido cancelado`,
+                }
+            };
+
+            const config = statusMessages[pedido.estado];
+            if (!config) return;
+
+            await this.sendNativeNotification(config.title, {
+                body: config.body,
+                data: { pedidoId: pedido.id, estado: pedido.estado }
+            });
+        },
+
+        // Verificar si debe mostrar el prompt de permisos
+        shouldShowPermissionPrompt() {
+            const lastPrompt = localStorage.getItem('last-notification-prompt');
+            const now = Date.now();
+            const oneDay = 24 * 60 * 60 * 1000; // 24 horas
+
+            return !lastPrompt || (now - parseInt(lastPrompt)) > oneDay;
+        },
+
+        markPermissionPromptShown() {
+            localStorage.setItem('last-notification-prompt', Date.now().toString());
+        }
+    };
+
     // Módulo para renderizar todas las vistas y componentes
     const Views = {
         formatPrice: (price, sign = true) => {
@@ -63,12 +696,95 @@ document.addEventListener("DOMContentLoaded", () => {
             return prefix + new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
         },
 
+        // Pantalla de loading moderna
+        getLoadingHTML(message = 'Cargando...') {
+            return `
+                <div class="flex flex-col items-center justify-center p-12 text-center">
+                    <div class="relative w-16 h-16 mb-6">
+                        <div class="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full animate-spin"></div>
+                        <div class="absolute inset-2 bg-white rounded-full flex items-center justify-center">
+                            <i class="fas fa-utensils text-indigo-500 text-lg"></i>
+                        </div>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-700 mb-2">${message}</h3>
+                    <p class="text-slate-500 text-sm">Esto no tomará mucho tiempo...</p>
+                    <div class="flex gap-1 mt-4">
+                        <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                        <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                        <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    </div>
+                </div>
+            `;
+        },
+
+        // Refresca solo la vista de pedidos sin recargar toda la página
+        async refreshPedidosView() {
+            if (State.vistaActual !== 'misPedidos') return;
+            
+            try {
+                const pedidos = await SmartCache.getMisPedidosOptimized();
+                const container = document.getElementById('app-container');
+                if (container) {
+                    container.innerHTML = this.getMisPedidosHTML(pedidos);
+                }
+            } catch (error) {
+                console.error('Error al refrescar pedidos:', error);
+            }
+        },
+
+        // 🔔 Inicializar notificaciones para la vista de pedidos
+        async initNotificationsForPedidos() {
+            console.log('🔔 Inicializando notificaciones...');
+            console.log('Hostname:', window.location.hostname);
+            console.log('Protocol:', window.location.protocol);
+            console.log('Notification support:', 'Notification' in window);
+            console.log('Current permission:', Notification.permission);
+            
+            // Inicializar sistema de notificaciones
+            const initialized = await WebNotifications.init();
+            console.log('WebNotifications initialized:', initialized);
+            
+            // Solo mostrar prompt si debería y no se ha mostrado recientemente
+            if (WebNotifications.shouldShowPermissionPrompt() && 
+                State.notifications.permission === 'default') {
+                
+                console.log('📝 Debería mostrar prompt de permisos...');
+                
+                // Esperar un poco para que la vista se cargue completamente
+                setTimeout(async () => {
+                    console.log('🎯 Intentando solicitar permisos...');
+                    const granted = await WebNotifications.requestPermission();
+                    console.log('Permisos otorgados:', granted);
+                    if (granted) {
+                        console.log('🔔 Notificaciones activadas correctamente');
+                    }
+                    WebNotifications.markPermissionPromptShown();
+                }, 2000); // 2 segundos después de cargar la vista
+            } else {
+                console.log('❌ No se mostrará prompt:', {
+                    shouldShow: WebNotifications.shouldShowPermissionPrompt(),
+                    permission: State.notifications.permission
+                });
+            }
+        },
+
         async render(view, params = null) {
             State.vistaActual = view;
+            
+            // Persistir vista actual (excepto para vista de producto específico)
+            if (!['producto'].includes(view)) {
+                localStorage.setItem('uni-eats-vista', view);
+            }
+            
             this.updateNav();
             this.renderSkeleton(view);
 
             try {
+                // Detener polling si cambiamos de vista
+                if (view !== 'misPedidos') {
+                    SmartPolling.stop();
+                }
+
                 switch (view) {
                     case 'inicio':
                         Header.innerHTML = this.getHeaderHTML('inicio');
@@ -102,8 +818,23 @@ document.addEventListener("DOMContentLoaded", () => {
                         break;
                     case 'misPedidos':
                         Header.innerHTML = this.getHeaderHTML('misPedidos');
-                        const pedidos = await Api.getMisPedidos();
+                        
+                        // Mostrar loading mientras se cargan los datos
+                        Container.innerHTML = this.getLoadingHTML('Cargando tus pedidos...');
+                        
+                        // Usar caché inteligente en lugar de API directa
+                        const pedidos = await SmartCache.getMisPedidosOptimized();
                         Container.innerHTML = this.getMisPedidosHTML(pedidos);
+                        
+                        // 🔔 Inicializar notificaciones web en primera visita
+                        await this.initNotificationsForPedidos();
+                        
+                        // Iniciar polling inteligente
+                        const hasActivePedidos = pedidos.some(p => 
+                            ['PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_RECOGER'].includes(p.estado)
+                        );
+                        SmartPolling.adjustFrequency(hasActivePedidos);
+                        SmartPolling.start();
                         break;
                 }
             } catch (error) {
@@ -132,15 +863,181 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             
             switch (view) {
-                case 'inicio': return `<div class="relative w-full px-4 mt-2">
-       <input type="search" placeholder="Buscar..." class="w-11/12 mx-auto bg-slate-100 placeholder-gray-500 text-gray-800 border border-transparent rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500 transition-shadow duration-150 shadow-sm">
-       <span class="absolute left-8 top-1/2 -translate-y-1/2 text-gray-400"><i class="fas fa-search"></i></span>
-    </div>`;
-                case 'tiendas': return `<h1 class="text-xl font-bold text-slate-800">Todas las Tiendas</h1>`;
-                case 'perfil': return `<h1 class="text-xl font-bold text-slate-800">Mi Perfil</h1>`;
-                case 'carrito': return `<div class="flex items-center gap-3"><button class="nav-back-btn" data-action="navigate" data-view="tiendas" data-id="${State.tiendaActual?.id}"><i class="fas fa-arrow-left"></i></button><h1 class="text-xl font-bold text-slate-800">Tu Pedido</h1></div>`;
-                case 'misPedidos': return `<div class="flex items-center gap-3"><button class="nav-back-btn" data-action="navigate" data-view="perfil"><i class="fas fa-arrow-left"></i></button><h1 class="text-xl font-bold text-slate-800">Mis Pedidos</h1></div>`;
-                case 'detalleProducto': return `<div class="flex items-center gap-3"><button class="nav-back-btn" data-action="navigate" data-view="${backViewTarget}" data-id="${State.tiendaActual?.id}"><i class="fas fa-arrow-left"></i></button><h1 class="text-xl font-bold text-slate-800 truncate">${data.nombre}</h1></div>`;
+                case 'inicio': return `
+                    <div class="relative bg-indigo-600 text-white overflow-hidden">
+                        <!-- Elementos decorativos flotantes -->
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full opacity-20 -translate-y-16 translate-x-16"></div>
+                        <div class="absolute bottom-0 left-0 w-24 h-24 bg-orange-400 rounded-full opacity-30 translate-y-12 -translate-x-12"></div>
+                        <div class="absolute top-1/2 right-1/4 w-16 h-16 bg-purple-400 rounded-full opacity-15"></div>
+                        
+                        <div class="relative z-10 px-4 pt-3 pb-3">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="relative">
+                                        <div class="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-xl transform rotate-3 hover:rotate-0 transition-transform duration-300">
+                                            <i class="fas fa-utensils text-white text-sm"></i>
+                                        </div>
+                                        <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                                    </div>
+                                    <div>
+                                        <h1 class="text-lg font-black tracking-tight bg-gradient-to-r from-white to-indigo-100 bg-clip-text text-transparent">Uni-Eats</h1>
+                                        <p class="text-indigo-200 text-xs font-medium">🎓 Comida universitaria</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="relative w-9 h-9 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="perfil">
+                                        <i class="fas fa-user text-white text-xs group-hover:scale-110 transition-transform"></i>
+                                        <div class="absolute inset-0 bg-white/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                    </button>
+                                    ${State.carrito.length > 0 ? `
+                                        <button class="relative w-9 h-9 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
+                                            <i class="fas fa-shopping-cart text-white text-xs group-hover:scale-110 transition-transform"></i>
+                                            <span class="absolute -top-2 -right-2 w-5 h-5 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-bounce border-2 border-white">${State.carrito.length}</span>
+                                            <div class="absolute inset-0 bg-white/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <!-- Barra de búsqueda compacta -->
+                            <div class="relative">
+                                <div class="relative bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-white/30">
+                                    <div class="flex items-center px-1">
+                                        <div class="flex-1 relative">
+                                            <input type="search" placeholder="Buscar comida..." class="w-full bg-transparent placeholder-slate-400 text-slate-800 border-0 rounded-2xl py-2 pl-4 pr-3 text-sm focus:outline-none">
+                                            <div class="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping"></div>
+                                        </div>
+                                        <button class="w-9 h-9 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group">
+                                            <i class="fas fa-search text-white text-xs group-hover:rotate-12 transition-transform"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                case 'tiendas': return `
+                    <div class="relative bg-blue-600 text-white overflow-hidden">
+                        <div class="absolute top-0 right-0 w-28 h-28 bg-blue-500 rounded-full opacity-20 -translate-y-14 translate-x-14"></div>
+                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-cyan-400 rounded-full opacity-25 translate-y-10 -translate-x-10"></div>
+                        
+                        <div class="relative z-10 px-4 py-4">
+                            <div class="flex items-center gap-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl transform -rotate-2 hover:rotate-0 transition-transform duration-300">
+                                        <i class="fas fa-store text-white text-xl"></i>
+                                    </div>
+                                    <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-cyan-400 rounded-full"></div>
+                                </div>
+                                <div class="flex-1">
+                                    <h1 class="text-2xl font-black bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">Tiendas</h1>
+                                    <p class="text-blue-200 text-sm">🏪 Descubre sabores únicos</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                case 'perfil': return `
+                    <div class="relative bg-emerald-600 text-white overflow-hidden">
+                        <div class="absolute top-0 right-0 w-28 h-28 bg-emerald-500 rounded-full opacity-20 -translate-y-14 translate-x-14"></div>
+                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-teal-400 rounded-full opacity-25 translate-y-10 -translate-x-10"></div>
+                        
+                        <div class="relative z-10 px-4 py-4">
+                            <div class="flex items-center gap-4">
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-xl transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                                        <i class="fas fa-user text-white text-xl"></i>
+                                    </div>
+                                    <div class="absolute -top-1 -right-1 w-4 h-4 bg-teal-400 rounded-full animate-pulse"></div>
+                                </div>
+                                <div class="flex-1">
+                                    <h1 class="text-2xl font-black bg-gradient-to-r from-white to-emerald-100 bg-clip-text text-transparent">Mi Perfil</h1>
+                                    <p class="text-emerald-200 text-sm">👤 Gestiona tu experiencia</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                case 'carrito': return `
+                    <div class="relative bg-amber-600 text-white overflow-hidden">
+                        <div class="absolute top-0 right-0 w-28 h-28 bg-amber-500 rounded-full opacity-20 -translate-y-14 translate-x-14"></div>
+                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-orange-400 rounded-full opacity-25 translate-y-10 -translate-x-10"></div>
+                        
+                        <div class="relative z-10 px-4 py-4">
+                            <div class="flex items-center gap-3">
+                                <button class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20 nav-back-btn" data-action="navigate" data-view="tiendas" data-id="${State.tiendaActual?.id}">
+                                    <i class="fas fa-arrow-left text-white text-sm group-hover:scale-110 transition-transform"></i>
+                                </button>
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-xl transform -rotate-1 hover:rotate-0 transition-transform duration-300">
+                                        <i class="fas fa-shopping-cart text-white text-xl"></i>
+                                    </div>
+                                    <div class="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full flex items-center justify-center">
+                                        <span class="text-white text-xs font-bold">${State.carrito.length}</span>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <h1 class="text-2xl font-black bg-gradient-to-r from-white to-amber-100 bg-clip-text text-transparent">Tu Pedido</h1>
+                                    <p class="text-amber-200 text-sm">🛒 ${State.carrito.length} producto${State.carrito.length !== 1 ? 's' : ''} seleccionado${State.carrito.length !== 1 ? 's' : ''}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                case 'misPedidos': return `
+                    <div class="relative bg-purple-600 text-white overflow-hidden">
+                        <div class="absolute top-0 right-0 w-28 h-28 bg-purple-500 rounded-full opacity-20 -translate-y-14 translate-x-14"></div>
+                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-violet-400 rounded-full opacity-25 translate-y-10 -translate-x-10"></div>
+                        
+                        <div class="relative z-10 px-4 py-4">
+                            <div class="flex items-center gap-3">
+                                <button class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20 nav-back-btn" data-action="navigate" data-view="perfil">
+                                    <i class="fas fa-arrow-left text-white text-sm group-hover:scale-110 transition-transform"></i>
+                                </button>
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-violet-400 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl transform rotate-1 hover:rotate-0 transition-transform duration-300">
+                                        <i class="fas fa-history text-white text-xl"></i>
+                                    </div>
+                                    <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-pink-400 rounded-full animate-pulse"></div>
+                                </div>
+                                <div class="flex-1">
+                                    <h1 class="text-2xl font-black bg-gradient-to-r from-white to-purple-100 bg-clip-text text-transparent">Mis Pedidos</h1>
+                                    <p class="text-purple-200 text-sm">📜 Tu historial de sabores</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                case 'detalleProducto': return `
+                    <div class="relative bg-rose-600 text-white overflow-hidden">
+                        <div class="absolute top-0 right-0 w-28 h-28 bg-rose-500 rounded-full opacity-20 -translate-y-14 translate-x-14"></div>
+                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-pink-400 rounded-full opacity-25 translate-y-10 -translate-x-10"></div>
+                        
+                        <div class="relative z-10 px-4 py-4">
+                            <div class="flex items-center gap-3">
+                                <button class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20 nav-back-btn" data-action="navigate" data-view="${backViewTarget}" data-id="${State.tiendaActual?.id}">
+                                    <i class="fas fa-arrow-left text-white text-sm group-hover:scale-110 transition-transform"></i>
+                                </button>
+                                <div class="relative">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-pink-400 to-rose-600 rounded-2xl flex items-center justify-center shadow-xl transform -rotate-2 hover:rotate-0 transition-transform duration-300">
+                                        <i class="fas fa-hamburger text-white text-xl"></i>
+                                    </div>
+                                    <div class="absolute -top-1 -left-1 w-4 h-4 bg-yellow-400 rounded-full animate-bounce"></div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h1 class="text-xl font-black truncate bg-gradient-to-r from-white to-rose-100 bg-clip-text text-transparent">${data.nombre}</h1>
+                                    <p class="text-rose-200 text-sm">🎨 Personaliza tu antojo</p>
+                                </div>
+                                ${State.carrito.length > 0 ? `
+                                    <button class="relative w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
+                                        <i class="fas fa-shopping-cart text-white text-sm group-hover:scale-110 transition-transform"></i>
+                                        <span class="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-bounce border-2 border-white">${State.carrito.length}</span>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>`;
+                    
                 default: return '';
             }
         },
@@ -223,33 +1120,159 @@ document.addEventListener("DOMContentLoaded", () => {
         },
 
         getMisPedidosHTML(pedidos) {
-            if (!pedidos || pedidos.length === 0) return `<div class="text-center p-10"><i class="fas fa-box-open text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">Aún no has realizado pedidos.</p></div>`;
+            if (!pedidos || pedidos.length === 0) {
+                return `
+                    <div class="text-center p-12">
+                        <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-receipt text-3xl text-slate-400"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-600 mb-2">Sin pedidos aún</h3>
+                        <p class="text-slate-500">¡Explora nuestras tiendas y realiza tu primer pedido!</p>
+                        <button class="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-2xl font-medium hover:bg-indigo-700 transition-colors" data-action="navigate" data-view="tiendas">
+                            Explorar Tiendas
+                        </button>
+                    </div>
+                    </div>
+                `;
+            }
             
+            // Configuración avanzada de estados con animaciones
             const statusConfig = {
-                'PENDIENTE': { text: 'En espera de aprobación', icon: 'fa-hourglass-start', color: 'text-amber-500' },
-                'EN_PREPARACION': { text: 'Pedido en preparación', icon: 'fa-utensils', color: 'text-blue-500' },
-                'LISTO_PARA_RECOGER': { text: '¡Listo para recoger!', icon: 'fa-shopping-bag', color: 'text-green-500' },
-                'COMPLETADO': { text: 'Entregado', icon: 'fa-check-circle', color: 'text-gray-500' },
-                'CANCELADO': { text: 'Cancelado', icon: 'fa-times-circle', color: 'text-red-500' }
+                'PENDIENTE': { 
+                    text: 'En espera de aprobación', 
+                    icon: 'fa-hourglass-start', 
+                    color: 'text-amber-500',
+                    animation: 'animate-spin',
+                    bgColor: 'bg-amber-50',
+                    borderColor: 'border-amber-200'
+                },
+                'EN_PREPARACION': { 
+                    text: 'Preparando tu pedido', 
+                    icon: 'fa-utensils', 
+                    color: 'text-blue-500',
+                    animation: 'animate-bounce',
+                    bgColor: 'bg-blue-50',
+                    borderColor: 'border-blue-200'
+                },
+                'LISTO_PARA_RECOGER': { 
+                    text: '¡Listo para recoger!', 
+                    icon: 'fa-shopping-bag', 
+                    color: 'text-green-500',
+                    animation: 'animate-pulse',
+                    bgColor: 'bg-green-50',
+                    borderColor: 'border-green-200'
+                },
+                'COMPLETADO': { 
+                    text: 'Entregado', 
+                    icon: 'fa-check-circle', 
+                    color: 'text-gray-500',
+                    animation: '',
+                    bgColor: 'bg-gray-50',
+                    borderColor: 'border-gray-200'
+                },
+                'CANCELADO': { 
+                    text: 'Cancelado', 
+                    icon: 'fa-times-circle', 
+                    color: 'text-red-500',
+                    animation: '',
+                    bgColor: 'bg-red-50',
+                    borderColor: 'border-red-200'
+                }
             };
 
             return pedidos.map(pedido => {
-                const currentStatus = statusConfig[pedido.estado] || {};
+                const status = statusConfig[pedido.estado] || statusConfig['PENDIENTE'];
+                const fechaFormateada = new Date(pedido.fechaCreacion).toLocaleDateString('es-ES', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                const isActiveOrder = ['PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_RECOGER'].includes(pedido.estado);
+                
                 return `
-                <div class="bg-white rounded-xl shadow-sm p-4 mb-4 space-y-3">
-                    <div class="flex justify-between items-center">
-                        <div><p class="font-bold text-slate-800">${pedido.nombreTienda}</p><p class="text-xs text-slate-500">Pedido #${pedido.id} &bull; ${new Date(pedido.fechaCreacion).toLocaleDateString()}</p></div>
-                        <p class="font-bold text-lg">${this.formatPrice(pedido.total, false)}</p>
-                    </div>
-                    <div class="border-t pt-3">
-                        <p class="font-semibold text-md ${currentStatus.color} flex items-center gap-2"><i class="fas ${currentStatus.icon}"></i><span>${currentStatus.text}</span></p>
-                        <div class="flex justify-between text-xs text-center mt-2">
-                            <div class="w-1/4 ${pedido.estado === 'PENDIENTE' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-receipt"></i><p>Pedido</p></div>
-                            <div class="w-1/4 ${pedido.estado === 'EN_PREPARACION' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-utensils"></i><p>Preparando</p></div>
-                            <div class="w-1/4 ${pedido.estado === 'LISTO_PARA_RECOGER' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-shopping-bag"></i><p>Listo</p></div>
-                            <div class="w-1/4 ${pedido.estado === 'COMPLETADO' ? 'font-bold text-indigo-600' : 'text-slate-400'}"><i class="fas fa-check"></i><p>Entregado</p></div>
+                <div class="bg-white rounded-2xl shadow-lg p-5 mb-4 border-2 ${status.borderColor} hover:shadow-xl transition-all duration-300 ${status.bgColor}">
+                    <!-- Header del pedido -->
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <h3 class="font-bold text-lg text-slate-800">${pedido.nombreTienda}</h3>
+                                ${isActiveOrder ? '<div class="w-2 h-2 bg-green-400 rounded-full animate-ping"></div>' : ''}
+                            </div>
+                            <p class="text-sm text-slate-500 flex items-center gap-2">
+                                <i class="fas fa-hashtag text-xs"></i>
+                                Pedido ${pedido.id} • ${fechaFormateada}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-black text-xl text-slate-800">${this.formatPrice(pedido.total, false)}</p>
+                            ${isActiveOrder ? '<p class="text-xs text-green-600 font-medium">En tiempo real 🔴</p>' : ''}
                         </div>
                     </div>
+
+                    <!-- Estado actual con animación -->
+                    <div class="mb-4 p-3 rounded-xl ${status.bgColor} border ${status.borderColor}">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                <i class="fas ${status.icon} ${status.color} ${status.animation}"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-bold ${status.color} text-sm">${status.text}</p>
+                                <p class="text-xs text-slate-500 mt-0.5">
+                                    ${isActiveOrder ? 'Actualizándose automáticamente...' : 'Estado final'}
+                                </p>
+                            </div>
+                            ${isActiveOrder ? `
+                                <div class="flex gap-1">
+                                    <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                                    <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                    <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Línea de tiempo del pedido -->
+                    <div class="grid grid-cols-4 gap-2 text-center">
+                        <div class="flex flex-col items-center space-y-1">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${pedido.estado === 'PENDIENTE' ? 'bg-amber-500 text-white animate-spin' : 'bg-amber-100 text-amber-600'}">
+                                <i class="fas fa-receipt"></i>
+                            </div>
+                            <p class="text-xs font-medium ${pedido.estado === 'PENDIENTE' ? 'text-amber-600' : 'text-slate-400'}">Pedido</p>
+                        </div>
+                        
+                        <div class="flex flex-col items-center space-y-1">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${pedido.estado === 'EN_PREPARACION' ? 'bg-blue-500 text-white animate-bounce' : ['EN_PREPARACION', 'LISTO_PARA_RECOGER', 'COMPLETADO'].includes(pedido.estado) ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}">
+                                <i class="fas fa-utensils"></i>
+                            </div>
+                            <p class="text-xs font-medium ${pedido.estado === 'EN_PREPARACION' ? 'text-blue-600' : ['EN_PREPARACION', 'LISTO_PARA_RECOGER', 'COMPLETADO'].includes(pedido.estado) ? 'text-blue-600' : 'text-slate-400'}">Preparando</p>
+                        </div>
+                        
+                        <div class="flex flex-col items-center space-y-1">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${pedido.estado === 'LISTO_PARA_RECOGER' ? 'bg-green-500 text-white animate-pulse' : ['LISTO_PARA_RECOGER', 'COMPLETADO'].includes(pedido.estado) ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}">
+                                <i class="fas fa-shopping-bag"></i>
+                            </div>
+                            <p class="text-xs font-medium ${pedido.estado === 'LISTO_PARA_RECOGER' ? 'text-green-600' : ['LISTO_PARA_RECOGER', 'COMPLETADO'].includes(pedido.estado) ? 'text-green-600' : 'text-slate-400'}">Listo</p>
+                        </div>
+                        
+                        <div class="flex flex-col items-center space-y-1">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${pedido.estado === 'COMPLETADO' ? 'bg-gray-500 text-white' : 'bg-slate-100 text-slate-400'}">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <p class="text-xs font-medium ${pedido.estado === 'COMPLETADO' ? 'text-gray-600' : 'text-slate-400'}">Entregado</p>
+                        </div>
+                    </div>
+
+                    <!-- Indicador de cancelación -->
+                    ${pedido.estado === 'CANCELADO' ? `
+                        <div class="mt-3 p-2 bg-red-50 border border-red-200 rounded-xl">
+                            <div class="flex items-center gap-2 text-red-600">
+                                <i class="fas fa-times-circle"></i>
+                                <span class="text-sm font-medium">Pedido cancelado</span>
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>`;
             }).join('');
         },
@@ -416,7 +1439,17 @@ getCategoryBarHTML() {
                 const navLink = e.target.closest('.nav-link');
                 if (navLink) { e.preventDefault(); Views.render(navLink.dataset.view); }
             });
-            Views.render('inicio');
+            
+            // 🔄 Cargar vista persistida o vista por defecto
+            const vistaGuardada = State.vistaActual || 'inicio';
+            Views.render(vistaGuardada);
+            
+            // 🔔 Listener para mensajes del Service Worker
+            navigator.serviceWorker?.addEventListener('message', (event) => {
+                if (event.data?.type === 'NAVIGATE_TO_PEDIDOS') {
+                    Views.render('misPedidos');
+                }
+            });
         },
 
         actualizarCantidadProducto(operacion) {
@@ -509,6 +1542,10 @@ getCategoryBarHTML() {
             }, 3000);
         }
     };
+
+    // 🌐 Exponer funciones globalmente para desarrollo
+    window.WebNotifications = WebNotifications;
+    window.SmartCache = SmartCache;
 
     AppController.init();
 });

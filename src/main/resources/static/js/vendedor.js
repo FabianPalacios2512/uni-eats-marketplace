@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 getPedidos: '/api/vendedor/pedidos', // Endpoint para obtener pedidos
                 aceptarPedido: '/api/vendedor/pedidos/{id}/aceptar',
                 listoPedido: '/api/vendedor/pedidos/{id}/listo',
+                entregadoPedido: '/api/vendedor/pedidos/{id}/entregado',
                 cancelarPedido: '/api/vendedor/pedidos/{id}/cancelar',
                 getCategorias: '/api/vendedor/opciones/categorias',
                 crearCategoria: '/api/vendedor/opciones/categorias/crear',
@@ -479,6 +480,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <button class="bg-green-500 text-white font-semibold px-3 py-1 rounded-lg text-sm" data-action="aceptar" data-id="${pedido.id}">Aceptar</button>`;
                         } else if (pedido.estado === 'EN_PREPARACION') {
                             actionButtons = `<button class="bg-indigo-600 text-white font-semibold px-3 py-1 rounded-lg text-sm w-full" data-action="listo" data-id="${pedido.id}">Marcar como Listo</button>`;
+                        } else if (pedido.estado === 'LISTO_PARA_RECOGER') {
+                            actionButtons = `<button class="bg-emerald-600 text-white font-semibold px-3 py-1 rounded-lg text-sm w-full hover:bg-emerald-700 transition-colors" data-action="entregado" data-id="${pedido.id}">✅ Marcar como Entregado</button>`;
                         } else {
                             actionButtons = `<p class="text-sm text-slate-500 pr-2">Sin acciones</p>`;
                         }
@@ -515,6 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     switch(action) {
                         case 'aceptar': endpoint = App.config.apiEndpoints.aceptarPedido.replace('{id}', id); break;
                         case 'listo': endpoint = App.config.apiEndpoints.listoPedido.replace('{id}', id); break;
+                        case 'entregado': endpoint = App.config.apiEndpoints.entregadoPedido.replace('{id}', id); break;
                         case 'cancelar': endpoint = App.config.apiEndpoints.cancelarPedido.replace('{id}', id); break;
                         default: return;
                     }

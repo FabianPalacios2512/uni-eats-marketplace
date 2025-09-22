@@ -14,10 +14,11 @@
         /* Ocultar scrollbars en carruseles */
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .nav-link.active i, .nav-link.active span { color: #4f46e5; /* Indigo-600 */ }
+        .nav-link.active i, .nav-link.active span { color: #4f46e5; /* indigo-600 */ }
+        .nav-link.active .w-8 { background: #4f46e5; /* indigo-600 */ }
         .skeleton { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; background-color: #e5e7eb; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-        .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
         .qty-btn { width: 2.5rem; height: 2.5rem; border-radius: 9999px; background-color: #f1f5f9; font-weight: bold; font-size: 1.25rem; color: #4f46e5; }
         .profile-link { display: flex; align-items: center; padding: 1rem; border-bottom-width: 1px; }
         .profile-link:hover { background-color: #f8fafc; }
@@ -36,54 +37,37 @@
 </head>
 <body class="bg-slate-100">
 
-    <div class="w-full bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 min-h-screen pb-24">
-        <header id="app-header" class="sticky top-0 bg-white/95 backdrop-blur-xl shadow-xl z-20 border-b border-gradient-to-r from-orange-200 to-red-200">
-            <div class="flex items-center justify-between px-4 py-3">
-                <div class="flex items-center space-x-2">
-                    <div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg">
-                        <i class="fas fa-utensils text-white text-sm"></i>
-                    </div>
-                    <h1 class="text-xl font-black bg-gradient-to-r from-orange-600 via-red-500 to-pink-500 bg-clip-text text-transparent">
-                        Uni-Eats
-                    </h1>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <div class="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
-                        <i class="fas fa-bell text-gray-600 text-sm"></i>
-                    </div>
-                    <div class="w-8 h-8 bg-gradient-to-br from-indigo-100 to-purple-200 rounded-full flex items-center justify-center">
-                        <i class="fas fa-user text-indigo-600 text-sm"></i>
-                    </div>
-                </div>
-            </div>
+    <div class="w-full bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100 min-h-screen pb-20">
+        <header id="app-header" class="sticky top-0 bg-white/95 backdrop-blur-xl shadow-md z-20 border-b border-gray-200">
+            <!-- Header content will be managed by JavaScript -->
         </header>
         <main id="app-container" class="px-1 pt-1"></main>
     </div>
 
-    <nav id="app-nav" class="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 flex justify-around z-20 shadow-2xl">
-        <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-3 relative group" data-view="inicio">
-            <div class="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <i class="fas fa-home text-white text-sm"></i>
+    <nav id="app-nav" class="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 flex justify-around z-20 shadow-lg py-2">
+        <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-1 relative group" data-view="inicio">
+            <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                <i class="fas fa-home text-white text-xs"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Inicio</span>
+            <span class="text-xs text-indigo-600 font-medium mt-1 group-hover:text-indigo-700 transition-colors">Inicio</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-3 relative group" data-view="tiendas">
-            <div class="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-orange-400 group-hover:to-red-500 transition-all shadow-lg group-hover:scale-110">
-                <i class="fas fa-store text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="tiendas">
+            <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-blue-600 transition-all shadow-md group-hover:scale-110">
+                <i class="fas fa-store text-gray-500 text-xs group-hover:text-white transition-colors"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Tiendas</span>
+            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-blue-600 transition-colors">Tiendas</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-3 relative group" data-view="misPedidos">
-            <div class="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-orange-400 group-hover:to-red-500 transition-all shadow-lg group-hover:scale-110">
-                <i class="fas fa-receipt text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="misPedidos">
+            <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-purple-600 transition-all shadow-md group-hover:scale-110">
+                <i class="fas fa-receipt text-gray-500 text-xs group-hover:text-white transition-colors"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Pedidos</span>
+            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-purple-600 transition-colors">Pedidos</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-3 relative group" data-view="perfil">
-            <div class="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-orange-400 group-hover:to-red-500 transition-all shadow-lg group-hover:scale-110">
-                <i class="fas fa-user text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="perfil">
+            <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-600 transition-all shadow-md group-hover:scale-110">
+                <i class="fas fa-user text-gray-500 text-xs group-hover:text-white transition-colors"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-orange-500 transition-colors">Perfil</span>
+            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-emerald-600 transition-colors">Perfil</span>
         </a>
     </nav>
     

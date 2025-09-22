@@ -213,6 +213,16 @@ public class VendedorController {
         }
     }
 
+    @PostMapping("/pedidos/{pedidoId}/entregado")
+    public ResponseEntity<?> pedidoEntregado(@PathVariable Integer pedidoId) {
+        try {
+            pedidoService.actualizarEstadoPedido(pedidoId, EstadoPedido.COMPLETADO);
+            return ResponseEntity.ok().body("Pedido marcado como 'Entregado'");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PostMapping("/pedidos/{pedidoId}/cancelar")
     public ResponseEntity<?> cancelarPedido(@PathVariable Integer pedidoId) {
         try {

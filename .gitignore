@@ -31,3 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local development configuration ###
+src/main/resources/application-local.properties
+.env
+*.env
+
+### Archivos temporales ###
+*.log
+*.tmp

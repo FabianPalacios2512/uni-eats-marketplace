@@ -14,21 +14,23 @@ public class S3Config {
     @Value("${aws.s3.region:us-east-1}")
     private String region;
 
-    @Value("${aws.access-key-id:#{null}}")
+    @Value("${aws.access-key-id:}")
     private String accessKeyId;
 
-    @Value("${aws.secret-access-key:#{null}}")
+    @Value("${aws.secret-access-key:}")
     private String secretAccessKey;
 
     @Bean
     public S3Client s3Client() {
         // Solo crear cliente S3 si tenemos credenciales válidas
         if (accessKeyId != null && secretAccessKey != null && 
-            !accessKeyId.isEmpty() && !secretAccessKey.isEmpty()) {
+            !accessKeyId.trim().isEmpty() && !secretAccessKey.trim().isEmpty()) {
+            
+            System.out.println("✅ Configurando S3 Client con credenciales AWS");
             
             AwsBasicCredentials awsCredentials = AwsBasicCredentials.create(
-                accessKeyId, 
-                secretAccessKey
+                accessKeyId.trim(), 
+                secretAccessKey.trim()
             );
 
             return S3Client.builder()
@@ -38,6 +40,7 @@ public class S3Config {
         }
         
         // Retornar null si no hay credenciales (modo desarrollo local)
+        System.out.println("⚠️ Sin credenciales AWS - usando almacenamiento local");
         return null;
     }
 }

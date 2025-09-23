@@ -78,11 +78,6 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
-		<dependency>
-		<groupId>org.thymeleaf.extras</groupId>
-		<artifactId>thymeleaf-extras-springsecurity6</artifactId>
-		</dependency>
-
 		<!-- AWS S3 Dependencies -->
 		<dependency>
 			<groupId>software.amazon.awssdk</groupId>

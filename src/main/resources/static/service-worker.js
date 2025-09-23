@@ -12,8 +12,25 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Por ahora, no hacemos nada con las peticiones, solo las dejamos pasar.
-  event.respondWith(fetch(event.request));
+  // Solo interceptar requests específicas, no todas
+  const url = new URL(event.request.url);
+  
+  // No interceptar requests externas como via.placeholder.com
+  if (url.origin !== location.origin) {
+    return; // Dejar que el navegador maneje requests externas
+  }
+  
+  // Para requests internas, usar la red normalmente
+  event.respondWith(
+    fetch(event.request).catch(error => {
+      console.warn('SW: Fetch failed for', event.request.url, error);
+      // Return a simple response for failed requests
+      return new Response('Resource not available', { 
+        status: 503,
+        statusText: 'Service Unavailable' 
+      });
+    })
+  );
 });
 
 // 🔔 Manejar notificaciones push

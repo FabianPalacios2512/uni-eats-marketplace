@@ -5,23 +5,33 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Wait for utilities to be ready
-    const initializeApp = () => {
-        if (!window.UtilsReady) {
-            setTimeout(initializeApp, 50);
-            return;
-        }
-        
-        // Now we can safely use our utilities
-        Logger.info('VendorApp', 'Initializing Vendor Dashboard with optimized utilities');
-        
-        startVendorApp();
-    };
-    
-    initializeApp();
+    // Start immediately without waiting - no more infinite loops!
+    console.log('🚀 Starting Vendor Dashboard immediately');
+    startVendorApp();
 });
 
 function startVendorApp() {
+    // Simple fallback utilities - no complex dependencies
+    window.Logger = window.Logger || {
+        info: (component, message) => console.log(`ℹ️ ${component}: ${message}`),
+        warn: (component, message) => console.warn(`⚠️ ${component}: ${message}`),
+        error: (component, message) => console.error(`❌ ${component}: ${message}`),
+        debug: (component, message) => console.log(`🐛 ${component}: ${message}`)
+    };
+    
+    window.Icons = window.Icons || {
+        getClass: (key) => {
+            const fallbacks = {
+                'status.success': 'fas fa-check-circle',
+                'status.error': 'fas fa-times-circle',
+                'status.warning': 'fas fa-exclamation-triangle',
+                'status.info': 'fas fa-info-circle',
+                'status.loading': 'fas fa-spinner fa-spin'
+            };
+            return fallbacks[key] || 'fas fa-question';
+        },
+        html: (key, classes = '') => `<i class="${window.Icons.getClass(key)} ${classes}"></i>`
+    };
 
     const App = {
         config: {
@@ -193,13 +203,22 @@ function startVendorApp() {
             },
 
             switchView(targetId) {
+                // Agregar feedback visual inmediato
+                const activeLink = document.querySelector(`.nav-link[data-target="${targetId}"]`);
+                if (activeLink && targetId === 'pedidos') {
+                    const originalHTML = activeLink.innerHTML;
+                    activeLink.innerHTML = originalHTML.replace('Pedidos', '<i class="fas fa-spinner fa-spin mr-1"></i>Pedidos');
+                    setTimeout(() => {
+                        activeLink.innerHTML = originalHTML;
+                    }, 1000);
+                }
+                
                 document.querySelectorAll('.main-view').forEach(view => { view.style.display = 'none'; });
                 document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
                 const activeView = document.getElementById(`view-${targetId}`);
                 if (activeView) {
                     activeView.style.display = 'block';
                 }
-                const activeLink = document.querySelector(`.nav-link[data-target="${targetId}"]`);
                 if (activeLink) activeLink.classList.add('active');
                 if (App.state.fabButton) {
                     App.state.fabButton.style.display = (targetId === 'productos') ? 'flex' : 'none';
@@ -209,9 +228,17 @@ function startVendorApp() {
                 App.state.currentView = targetId;
                 localStorage.setItem('vendedor-current-view', targetId);
 
-                // Manage real-time polling based on current view
+                // Manage real-time polling and data loading based on current view
                 if (targetId === 'pedidos') {
-                    App.components.Pedidos.startPolling();
+                    // Recargar datos de pedidos al cambiar a esta vista
+                    window.Logger.info('Navigation', 'Cambiando a vista de pedidos - recargando datos');
+                    App.components.Pedidos.loadPedidos(true).then(() => {
+                        App.components.Pedidos.startPolling();
+                    }).catch(error => {
+                        window.Logger.error('Navigation', 'Error recargando pedidos al cambiar vista', error);
+                        // Intentar iniciar polling aunque falle la carga inicial
+                        App.components.Pedidos.startPolling();
+                    });
                 } else {
                     App.components.Pedidos.stopPolling();
                 }
@@ -326,29 +353,48 @@ function startVendorApp() {
                         link.addEventListener('click', (e) => { e.preventDefault(); App.ui.switchView(link.dataset.target); });
                     });
                     
-                    // Restore last view or default to 'pedidos'
-                    const savedView = localStorage.getItem('vendedor-current-view') || 'pedidos';
-                    App.ui.switchView(savedView);
+                    // Lógica inteligente de navegación
+                    const savedView = localStorage.getItem('vendedor-current-view');
+                    const sessionActive = sessionStorage.getItem('vendedor-session-active');
+                    
+                    let targetView = 'pedidos'; // Por defecto siempre pedidos
+                    
+                    // Solo mantener la vista guardada si es un refresh en la misma sesión
+                    if (sessionActive && savedView) {
+                        targetView = savedView;
+                        window.Logger.info('Navigation', `Manteniendo vista: ${savedView} (refresh en sesión activa)`);
+                    } else {
+                        window.Logger.info('Navigation', 'Nueva sesión - iniciando en Pedidos');
+                        // Marcar que la sesión está activa
+                        sessionStorage.setItem('vendedor-session-active', 'true');
+                    }
+                    
+                    App.ui.switchView(targetView);
 
                     // Load pedidos data in background after UI is ready
-                    if (savedView === 'pedidos') {
+                    if (targetView === 'pedidos') {
                         // Start loading pedidos in background, no await
                         this.loadPedidosInBackground();
                     }
+                    
+                    // Limpiar sesión cuando se cierre la ventana/pestaña
+                    window.addEventListener('beforeunload', () => {
+                        // Solo limpiar si no es un refresh (reload)
+                        if (!performance.navigation || performance.navigation.type !== 1) {
+                            sessionStorage.removeItem('vendedor-session-active');
+                        }
+                    });
                 },
                 
                 async loadPedidosInBackground() {
-                    // Small delay to let UI render first
+                    // Simple background loading without complex logging
                     setTimeout(async () => {
                         try {
-                            console.log('🔄 Loading pedidos in background...');
                             await App.components.Pedidos.loadPedidos();
-                            console.log('✅ Pedidos loaded successfully in background');
                             // Start polling only after first load is complete
                             App.components.Pedidos.startPolling();
                         } catch (error) {
-                            console.error('❌ Error loading pedidos in background:', error);
-                            // Don't block UI for background errors
+                            Logger.error('Pedidos', 'Background loading failed', error);
                         }
                     }, 100); // 100ms delay to let UI render
                 }
@@ -382,7 +428,7 @@ function startVendorApp() {
                         <div id="view-pedidos" class="main-view">
                             <header class="bg-white p-4 sticky top-0 z-30 rounded-b-2xl shadow-lg space-y-4 mb-4">
                                 <div class="flex items-center gap-3">
-                                    <img src="${tienda.logoUrl || 'https://via.placeholder.com/150'}" alt="Logo" class="w-12 h-12 rounded-full object-cover border-2 border-indigo-100">
+                                    <img src="${tienda.logoUrl || '/img/logo-placeholder.svg'}" alt="Logo" class="w-12 h-12 rounded-full object-cover border-2 border-indigo-100">
                                     <div><h1 class="text-lg font-bold text-slate-800 leading-tight">${tienda.nombre}</h1>${statusHtml}</div>
                                 </div>
                                 <div class="grid grid-cols-2 gap-4 text-center">
@@ -426,15 +472,25 @@ function startVendorApp() {
                     container.addEventListener('click', this.handlePedidoAction);
                 },
 
-                async loadPedidos() {
+                async loadPedidos(forceReload = false) {
                     const container = document.getElementById('pedidos-container');
                     if (!container) return;
 
-                    // Show subtle sync indicator only when user is active and it's not the first load
-                    let syncIndicator = null;
+                    // Show loading indicator if it's a forced reload (cambio de vista)
                     const isFirstLoad = container.innerHTML.includes('Cargando pedidos...');
+                    let syncIndicator = null;
                     
-                    if (App.state.isUserActive && !isFirstLoad) {
+                    if (forceReload) {
+                        // Mostrar loader inmediatamente para cambio de vista
+                        container.innerHTML = `
+                            <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
+                                <p class="text-slate-600">
+                                    <i class="fas fa-sync-alt mr-2"></i>Actualizando pedidos...
+                                </p>
+                            </div>
+                        `;
+                    } else if (App.state.isUserActive && !isFirstLoad) {
                         syncIndicator = this.showSyncIndicator();
                     }
 
@@ -446,14 +502,14 @@ function startVendorApp() {
                         // Check if there are actual changes before updating UI
                         const hasChanges = App.ui.checkForPedidosChanges(pedidos);
                         
-                        if (hasChanges || isFirstLoad) {
+                        if (hasChanges || isFirstLoad || forceReload) {
                             // Reset counter and speed up polling when there are changes
                             App.state.consecutiveNoChanges = 0;
                             App.state.lastActivityTime = Date.now();
                             this.adjustPollingSpeed(true);
                             
-                            // Check for new orders and show notification (but not on first load)
-                            if (!isFirstLoad) {
+                            // Check for new orders and show notification (but not on first load or forced reload)
+                            if (!isFirstLoad && !forceReload) {
                                 App.ui.showNewOrderNotification(pedidos.length);
                             }
                             
@@ -467,11 +523,11 @@ function startVendorApp() {
                         
                         return pedidos;
                     } catch (error) {
-                        const errorMsg = isFirstLoad ? 
+                        const errorMsg = isFirstLoad || forceReload ? 
                             `<div class="bg-white p-6 rounded-xl shadow-md text-center text-red-500">
                                 <i class="fas fa-exclamation-triangle text-2xl mb-3"></i>
                                 <p>Error al cargar pedidos</p>
-                                <button onclick="App.components.Pedidos.loadPedidos()" class="mt-3 bg-red-500 text-white px-4 py-2 rounded-lg">
+                                <button onclick="App.components.Pedidos.loadPedidos(true)" class="mt-3 bg-red-500 text-white px-4 py-2 rounded-lg">
                                     <i class="fas fa-redo mr-2"></i>Reintentar
                                 </button>
                             </div>` :
@@ -525,17 +581,17 @@ function startVendorApp() {
                         // Very slow polling if user is away for more than 10 minutes
                         App.state.pollingInterval = 300000; // 5 minutes
                         App.state.isUserActive = false;
-                        console.log('😴 Usuario inactivo - Polling muy lento:', App.state.pollingInterval / 1000, 'segundos');
+                        // Removed console.log to reduce noise
                     } else if (timeSinceLastInteraction > fiveMinutes) {
                         // Slower polling if user is away for more than 5 minutes
                         App.state.pollingInterval = App.state.maxPollingInterval;
                         App.state.isUserActive = false;
-                        console.log('💤 Usuario algo inactivo - Polling lento:', App.state.pollingInterval / 1000, 'segundos');
+                        // Removed console.log to reduce noise
                     } else if (hasChanges) {
                         // Speed up when there are changes and user is active
                         App.state.pollingInterval = App.state.minPollingInterval;
                         App.state.isUserActive = true;
-                        console.log('🚀 Polling acelerado a', App.state.pollingInterval / 1000, 'segundos (actividad detectada)');
+                        // Removed console.log to reduce noise
                     } else {
                         // Normal polling when no changes but user is active
                         if (App.state.consecutiveNoChanges >= 5) {
@@ -545,7 +601,7 @@ function startVendorApp() {
                                 App.state.minPollingInterval * (1 + slowDownFactor * 0.8),
                                 App.state.maxPollingInterval
                             );
-                            console.log('🐌 Polling ralentizado a', App.state.pollingInterval / 1000, 'segundos (sin cambios)');
+                            // Removed console.log to reduce noise
                         } else {
                             // Keep normal interval for first few checks without changes
                             App.state.pollingInterval = 45000; // 45 seconds
@@ -583,7 +639,6 @@ function startVendorApp() {
                     App.state.lastUserInteraction = Date.now(); // Reset user activity
                     
                     // Start with moderate polling - not too aggressive
-                    console.log('🚀 Iniciando polling inteligente cada', App.state.pollingInterval / 1000, 'segundos');
                     App.state.pedidosPolling = setInterval(async () => {
                         if (App.state.currentView === 'pedidos') {
                             await this.loadPedidos();
@@ -595,7 +650,7 @@ function startVendorApp() {
                     if (App.state.pedidosPolling) {
                         clearInterval(App.state.pedidosPolling);
                         App.state.pedidosPolling = null;
-                        console.log('⏹️ Polling detenido');
+                        // Removed console.log to reduce noise
                     }
                     
                     App.state.isPollingActive = false;
@@ -611,51 +666,316 @@ function startVendorApp() {
                 },
 
                 renderPedidos(pedidos, container) {
-                    if (pedidos.length === 0) {
-                        container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center"><i class="fas fa-receipt text-4xl text-indigo-400 mb-3"></i><h2 class="text-xl font-bold">Pedidos Activos</h2><p class="mt-2 text-slate-500">Aún no tienes pedidos nuevos.</p></div>`;
+                    // Filtrar solo pedidos activos (nuevos y en preparación)
+                    const pedidosActivos = pedidos.filter(p => 
+                        p.estado === 'PENDIENTE' || p.estado === 'EN_PREPARACION' || p.estado === 'LISTO_PARA_RECOGER'
+                    );
+                    
+                    // Contar pedidos completados/cancelados para el historial
+                    const pedidosHistoricos = pedidos.filter(p => 
+                        p.estado === 'COMPLETADO' || p.estado === 'CANCELADO'
+                    );
+
+                    if (pedidosActivos.length === 0) {
+                        container.innerHTML = `
+                            <div class="mb-4 flex justify-between items-center">
+                                <h2 class="text-xl font-bold text-slate-800">
+                                    <i class="fas fa-clock text-orange-500 mr-2"></i>Pedidos Activos (0)
+                                </h2>
+                                <div class="flex gap-2">
+                                    <button id="refresh-pedidos" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-2 rounded-lg transition-colors text-sm" title="Actualizar pedidos">
+                                        <i class="fas fa-sync-alt mr-1"></i>Actualizar
+                                    </button>
+                                    ${pedidosHistoricos.length > 0 ? `
+                                        <button id="ver-historial-pedidos" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                                            <i class="fas fa-history mr-1"></i>Ver Historial (${pedidosHistoricos.length})
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                                <i class="fas fa-receipt text-4xl text-indigo-400 mb-3"></i>
+                                <h3 class="text-xl font-bold">Pedidos Activos</h3>
+                                <p class="mt-2 text-slate-500">No tienes pedidos pendientes en este momento.</p>
+                            </div>
+                        `;
+                        this.attachHistorialHandler(pedidos);
                         return;
                     }
 
                     const formatPrice = (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
                     
-                    container.innerHTML = pedidos.map(pedido => {
-                        const statusConfig = {
-                            'PENDIENTE': { text: 'Pendiente', colors: 'bg-amber-100 text-amber-800' },
-                            'EN_PREPARACION': { text: 'En Preparación', colors: 'bg-blue-100 text-blue-800' },
-                            'LISTO_PARA_RECOGER': { text: 'Listo', colors: 'bg-green-100 text-green-800' },
-                            'CANCELADO': { text: 'Cancelado', colors: 'bg-red-100 text-red-800' },
-                            'COMPLETADO': { text: 'Completado', colors: 'bg-gray-100 text-gray-800' }
-                        };
-                        const currentStatus = statusConfig[pedido.estado] || {};
+                    container.innerHTML = `
+                        <div class="mb-4 flex justify-between items-center">
+                            <h2 class="text-xl font-bold text-slate-800">
+                                <i class="fas fa-clock text-orange-500 mr-2"></i>Pedidos Activos (${pedidosActivos.length})
+                            </h2>
+                            <div class="flex gap-2">
+                                <button id="refresh-pedidos" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-2 rounded-lg transition-colors text-sm" title="Actualizar pedidos">
+                                    <i class="fas fa-sync-alt mr-1"></i>Actualizar
+                                </button>
+                                ${pedidosHistoricos.length > 0 ? `
+                                    <button id="ver-historial-pedidos" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition-colors text-sm">
+                                        <i class="fas fa-history mr-1"></i>Ver Historial (${pedidosHistoricos.length})
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            ${pedidosActivos.map(pedido => {
+                                const statusConfig = {
+                                    'PENDIENTE': { text: 'Nuevo Pedido', colors: 'bg-amber-100 text-amber-800', icon: 'fas fa-exclamation-circle' },
+                                    'EN_PREPARACION': { text: 'En Preparación', colors: 'bg-blue-100 text-blue-800', icon: 'fas fa-clock' },
+                                    'LISTO_PARA_RECOGER': { text: 'Listo para Recoger', colors: 'bg-green-100 text-green-800', icon: 'fas fa-check-circle' }
+                                };
+                                const currentStatus = statusConfig[pedido.estado] || {};
 
-                        let actionButtons = '';
-                        if (pedido.estado === 'PENDIENTE') {
-                            actionButtons = `
-                                <button class="bg-red-100 text-red-700 font-semibold px-3 py-1 rounded-lg text-sm" data-action="cancelar" data-id="${pedido.id}">Rechazar</button>
-                                <button class="bg-green-500 text-white font-semibold px-3 py-1 rounded-lg text-sm" data-action="aceptar" data-id="${pedido.id}">Aceptar</button>`;
-                        } else if (pedido.estado === 'EN_PREPARACION') {
-                            actionButtons = `<button class="bg-indigo-600 text-white font-semibold px-3 py-1 rounded-lg text-sm w-full" data-action="listo" data-id="${pedido.id}">Marcar como Listo</button>`;
-                        } else if (pedido.estado === 'LISTO_PARA_RECOGER') {
-                            actionButtons = `<button class="bg-emerald-600 text-white font-semibold px-3 py-1 rounded-lg text-sm w-full hover:bg-emerald-700 transition-colors" data-action="entregado" data-id="${pedido.id}">✅ Marcar como Entregado</button>`;
-                        } else {
-                            actionButtons = `<p class="text-sm text-slate-500 pr-2">Sin acciones</p>`;
+                                let actionButtons = '';
+                                if (pedido.estado === 'PENDIENTE') {
+                                    actionButtons = `
+                                        <button class="bg-red-100 hover:bg-red-200 text-red-700 font-semibold px-3 py-1 rounded-lg text-sm transition-colors" data-action="cancelar" data-id="${pedido.id}">
+                                            <i class="fas fa-times mr-1"></i>Rechazar
+                                        </button>
+                                        <button class="bg-green-500 hover:bg-green-600 text-white font-semibold px-3 py-1 rounded-lg text-sm transition-colors" data-action="aceptar" data-id="${pedido.id}">
+                                            <i class="fas fa-check mr-1"></i>Aceptar
+                                        </button>`;
+                                } else if (pedido.estado === 'EN_PREPARACION') {
+                                    actionButtons = `<button class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1 rounded-lg text-sm w-full transition-colors" data-action="listo" data-id="${pedido.id}">
+                                        <i class="fas fa-utensils mr-1"></i>Marcar como Listo
+                                    </button>`;
+                                } else if (pedido.estado === 'LISTO_PARA_RECOGER') {
+                                    actionButtons = `<button class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1 rounded-lg text-sm w-full transition-colors" data-action="entregado" data-id="${pedido.id}">
+                                        <i class="fas fa-handshake mr-1"></i>Marcar como Entregado
+                                    </button>`;
+                                }
+
+                                return `
+                                <div class="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow border-l-4 ${pedido.estado === 'PENDIENTE' ? 'border-amber-400' : pedido.estado === 'EN_PREPARACION' ? 'border-blue-400' : 'border-green-400'}" data-pedido-id="${pedido.id}">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <p class="font-bold text-slate-800">
+                                                <i class="fas fa-receipt text-indigo-500 mr-1"></i>
+                                                Pedido #${pedido.id} - <span class="font-normal">${pedido.nombreComprador}</span>
+                                            </p>
+                                            <p class="text-xs text-slate-500">
+                                                <i class="fas fa-calendar-alt mr-1"></i>
+                                                ${new Date(pedido.fechaCreacion).toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <span class="status-badge px-3 py-1 text-xs font-semibold rounded-full ${currentStatus.colors}">
+                                            <i class="${currentStatus.icon} mr-1"></i>${currentStatus.text}
+                                        </span>
+                                    </div>
+                                    <div class="border-t border-b py-3 space-y-2">
+                                        ${pedido.detalles.map(d => `
+                                            <div class="flex justify-between text-sm">
+                                                <span class="text-slate-600">
+                                                    <span class="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-semibold mr-2">${d.cantidad}x</span>
+                                                    ${d.nombreProducto}
+                                                </span>
+                                                <span class="text-slate-700 font-medium">${formatPrice(d.precioUnitario * d.cantidad)}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                    <div class="pt-3 flex justify-between items-center">
+                                        <p class="font-bold text-lg text-slate-800">
+                                            <i class="fas fa-dollar-sign text-green-600 mr-1"></i>
+                                            Total: ${formatPrice(pedido.total)}
+                                        </p>
+                                        <div class="flex gap-2">${actionButtons}</div>
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                    
+                    this.attachHistorialHandler(pedidos);
+                },
+
+                attachHistorialHandler(todosLosPedidos) {
+                    // Handler para historial
+                    const historialBtn = document.getElementById('ver-historial-pedidos');
+                    if (historialBtn) {
+                        historialBtn.addEventListener('click', () => {
+                            this.mostrarHistorialPedidos(todosLosPedidos);
+                        });
+                    }
+                    
+                    // Handler para botón de refresh
+                    const refreshBtn = document.getElementById('refresh-pedidos');
+                    if (refreshBtn) {
+                        refreshBtn.addEventListener('click', async () => {
+                            // Agregar animación de loading al botón
+                            const originalHTML = refreshBtn.innerHTML;
+                            refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Actualizando...';
+                            refreshBtn.disabled = true;
+                            
+                            try {
+                                // Forzar recarga de pedidos
+                                await App.components.Pedidos.loadPedidos(true);
+                                
+                                // Feedback visual de éxito
+                                refreshBtn.innerHTML = '<i class="fas fa-check mr-1"></i>Actualizado';
+                                setTimeout(() => {
+                                    refreshBtn.innerHTML = originalHTML;
+                                    refreshBtn.disabled = false;
+                                }, 1500);
+                            } catch (error) {
+                                // Feedback visual de error
+                                refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i>Error';
+                                setTimeout(() => {
+                                    refreshBtn.innerHTML = originalHTML;
+                                    refreshBtn.disabled = false;
+                                }, 2000);
+                            }
+                        });
+                    }
+                },
+
+                mostrarHistorialPedidos(todosLosPedidos) {
+                    // Filtrar pedidos históricos
+                    const pedidosHistoricos = todosLosPedidos.filter(p => 
+                        p.estado === 'COMPLETADO' || p.estado === 'CANCELADO'
+                    ).sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
+
+                    const formatPrice = (price) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(price);
+                    
+                    // Crear modal para mostrar el historial
+                    const modalHTML = `
+                        <div id="historial-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div class="bg-white rounded-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+                                <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                                    <h2 class="text-2xl font-bold text-slate-800">
+                                        <i class="fas fa-history text-slate-600 mr-2"></i>
+                                        Historial de Pedidos
+                                    </h2>
+                                    <button id="cerrar-historial" class="text-gray-500 hover:text-gray-700 text-2xl">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="p-6 overflow-y-auto max-h-[70vh]">
+                                    ${pedidosHistoricos.length === 0 ? `
+                                        <div class="text-center py-8">
+                                            <i class="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
+                                            <p class="text-gray-500">No hay pedidos en el historial.</p>
+                                        </div>
+                                    ` : `
+                                        <div class="grid gap-4">
+                                            ${pedidosHistoricos.map(pedido => {
+                                                const statusConfig = {
+                                                    'COMPLETADO': { text: 'Completado', colors: 'bg-green-100 text-green-800', icon: 'fas fa-check-circle' },
+                                                    'CANCELADO': { text: 'Cancelado', colors: 'bg-red-100 text-red-800', icon: 'fas fa-times-circle' }
+                                                };
+                                                const currentStatus = statusConfig[pedido.estado] || {};
+                                                
+                                                const totalVentas = pedido.estado === 'COMPLETADO' ? pedido.total : 0;
+                                                
+                                                return `
+                                                    <div class="bg-gray-50 p-4 rounded-lg border ${pedido.estado === 'COMPLETADO' ? 'border-green-200' : 'border-red-200'}">
+                                                        <div class="flex justify-between items-start mb-3">
+                                                            <div>
+                                                                <p class="font-semibold text-slate-800">
+                                                                    <i class="fas fa-receipt text-slate-500 mr-1"></i>
+                                                                    Pedido #${pedido.id} - ${pedido.nombreComprador}
+                                                                </p>
+                                                                <p class="text-sm text-slate-500">
+                                                                    <i class="fas fa-calendar mr-1"></i>
+                                                                    ${new Date(pedido.fechaCreacion).toLocaleString()}
+                                                                </p>
+                                                            </div>
+                                                            <span class="px-3 py-1 text-xs font-semibold rounded-full ${currentStatus.colors}">
+                                                                <i class="${currentStatus.icon} mr-1"></i>${currentStatus.text}
+                                                            </span>
+                                                        </div>
+                                                        <div class="text-sm space-y-1">
+                                                            ${pedido.detalles.map(d => `
+                                                                <div class="flex justify-between">
+                                                                    <span class="text-slate-600">${d.cantidad}x ${d.nombreProducto}</span>
+                                                                    <span class="text-slate-700">${formatPrice(d.precioUnitario * d.cantidad)}</span>
+                                                                </div>
+                                                            `).join('')}
+                                                        </div>
+                                                        <div class="pt-2 mt-2 border-t border-gray-200 flex justify-between items-center">
+                                                            <span class="font-bold text-slate-800">Total: ${formatPrice(pedido.total)}</span>
+                                                            ${pedido.estado === 'COMPLETADO' ? 
+                                                                `<span class="text-green-600 text-sm font-medium">
+                                                                    <i class="fas fa-money-bill-wave mr-1"></i>Venta exitosa
+                                                                </span>` : 
+                                                                `<span class="text-red-600 text-sm font-medium">
+                                                                    <i class="fas fa-ban mr-1"></i>No completado
+                                                                </span>`
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                        
+                                        <!-- Resumen de estadísticas -->
+                                        <div class="mt-6 pt-6 border-t border-gray-200">
+                                            <h3 class="text-lg font-semibold text-slate-800 mb-4">
+                                                <i class="fas fa-chart-bar text-indigo-500 mr-2"></i>Resumen de Estadísticas
+                                            </h3>
+                                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                ${(() => {
+                                                    const completados = pedidosHistoricos.filter(p => p.estado === 'COMPLETADO');
+                                                    const cancelados = pedidosHistoricos.filter(p => p.estado === 'CANCELADO');
+                                                    const totalVentas = completados.reduce((sum, p) => sum + p.total, 0);
+                                                    
+                                                    return `
+                                                        <div class="bg-green-50 p-4 rounded-lg text-center">
+                                                            <i class="fas fa-check-circle text-2xl text-green-600 mb-2"></i>
+                                                            <p class="text-sm text-green-700 font-medium">Pedidos Completados</p>
+                                                            <p class="text-2xl font-bold text-green-800">${completados.length}</p>
+                                                            <p class="text-xs text-green-600">${formatPrice(totalVentas)}</p>
+                                                        </div>
+                                                        <div class="bg-red-50 p-4 rounded-lg text-center">
+                                                            <i class="fas fa-times-circle text-2xl text-red-600 mb-2"></i>
+                                                            <p class="text-sm text-red-700 font-medium">Pedidos Cancelados</p>
+                                                            <p class="text-2xl font-bold text-red-800">${cancelados.length}</p>
+                                                            <p class="text-xs text-red-600">Sin ingresos</p>
+                                                        </div>
+                                                        <div class="bg-indigo-50 p-4 rounded-lg text-center">
+                                                            <i class="fas fa-percentage text-2xl text-indigo-600 mb-2"></i>
+                                                            <p class="text-sm text-indigo-700 font-medium">Tasa de Éxito</p>
+                                                            <p class="text-2xl font-bold text-indigo-800">
+                                                                ${pedidosHistoricos.length > 0 ? Math.round((completados.length / pedidosHistoricos.length) * 100) : 0}%
+                                                            </p>
+                                                            <p class="text-xs text-indigo-600">${pedidosHistoricos.length} pedidos totales</p>
+                                                        </div>
+                                                    `;
+                                                })()}
+                                            </div>
+                                        </div>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Agregar modal al DOM
+                    document.body.insertAdjacentHTML('beforeend', modalHTML);
+                    
+                    // Manejar el cierre del modal
+                    const modal = document.getElementById('historial-modal');
+                    const cerrarBtn = document.getElementById('cerrar-historial');
+                    
+                    const cerrarModal = () => {
+                        modal.remove();
+                    };
+                    
+                    cerrarBtn.addEventListener('click', cerrarModal);
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) cerrarModal();
+                    });
+                    
+                    // Cerrar con ESC
+                    document.addEventListener('keydown', function escHandler(e) {
+                        if (e.key === 'Escape') {
+                            cerrarModal();
+                            document.removeEventListener('keydown', escHandler);
                         }
-
-                        return `
-                        <div class="bg-white p-4 rounded-xl shadow-md space-y-2" data-pedido-id="${pedido.id}">
-                            <div class="flex justify-between items-start">
-                                <div><p class="font-bold text-slate-800">Pedido #${pedido.id} - <span class="font-normal">${pedido.nombreComprador}</span></p><p class="text-xs text-slate-500">${new Date(pedido.fechaCreacion).toLocaleString()}</p></div>
-                                <span class="status-badge px-2 py-1 text-xs font-semibold rounded-full ${currentStatus.colors}">${currentStatus.text}</span>
-                            </div>
-                            <div class="border-t border-b py-2 space-y-1">
-                                ${pedido.detalles.map(d => `<div class="flex justify-between text-sm"><span class="text-slate-600">${d.cantidad}x ${d.nombreProducto}</span><span class="text-slate-500">${formatPrice(d.precioUnitario * d.cantidad)}</span></div>`).join('')}
-                            </div>
-                            <div class="pt-2 flex justify-between items-center">
-                                <p class="font-bold text-lg text-slate-800">Total: ${formatPrice(pedido.total)}</p>
-                                <div class="flex gap-2">${actionButtons}</div>
-                            </div>
-                        </div>`;
-                    }).join('');
+                    });
                 },
 
                 async handlePedidoAction(e) {
@@ -750,7 +1070,7 @@ function startVendorApp() {
                         return `
                             <div class="product-item bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex items-center gap-3 hover:shadow-md transition-all duration-200 ${isDisabled ? 'opacity-60' : ''}" data-product-id="${p.id}">
                                 <div class="relative">
-                                    <img src="${p.imagenUrl || 'https://via.placeholder.com/400x300'}" alt="${p.nombre}" class="w-12 h-12 rounded-lg object-cover ${isDisabled ? 'grayscale' : ''}">
+                                    <img src="${p.imagenUrl || '/img/placeholder.svg'}" alt="${p.nombre}" class="w-12 h-12 rounded-lg object-cover ${isDisabled ? 'grayscale' : ''}">
                                     ${isDisabled ? '<div class="absolute inset-0 bg-red-500/10 rounded-lg flex items-center justify-center"><span class="text-red-500 text-xs font-bold">!</span></div>' : ''}
                                 </div>
                                 <div class="flex-1 min-w-0">
@@ -785,7 +1105,7 @@ function startVendorApp() {
                         return `
                             <div class="product-card group bg-white rounded-3xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 border border-slate-100 ${isDisabled ? 'opacity-60 grayscale' : ''}" data-product-id="${p.id}">
                                 <div class="relative overflow-hidden">
-                                    <img src="${p.imagenUrl || 'https://via.placeholder.com/400x300'}" alt="${p.nombre}" class="w-full h-24 object-cover group-hover:scale-110 transition-transform duration-500">
+                                    <img src="${p.imagenUrl || '/img/placeholder.svg'}" alt="${p.nombre}" class="w-full h-24 object-cover group-hover:scale-110 transition-transform duration-500">
                                     <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                     ${isDisabled ? '<div class="absolute inset-0 bg-red-500/20 flex items-center justify-center"><span class="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">DESHABILITADO</span></div>' : ''}
                                     <div class="absolute top-2 right-2 flex space-x-1">
@@ -825,7 +1145,7 @@ function startVendorApp() {
                     App.ui.initModal('product-modal', () => {
                         document.getElementById('product-form')?.reset();
                         const preview = document.getElementById('image-preview');
-                        if(preview) preview.src = 'https://via.placeholder.com/300x200';
+                        if(preview) preview.src = '/img/placeholder.svg';
                         
                         App.components.Opciones.renderAsignacion(App.state.categorias, { categoriasDeOpciones: [] });
                     });
@@ -932,7 +1252,7 @@ function startVendorApp() {
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-2">Imagen actual</label>
-                                            <img src="${producto.imagenUrl || 'https://via.placeholder.com/300x200'}" alt="Imagen actual" class="w-full h-32 object-cover rounded-2xl border border-gray-200 mb-2">
+                                            <img src="${producto.imagenUrl || '/img/placeholder.svg'}" alt="Imagen actual" class="w-full h-32 object-cover rounded-2xl border border-gray-200 mb-2">
                                             <input type="file" name="imagen" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-colors" accept="image/*">
                                         </div>
                                         <div class="flex items-center space-x-3">
@@ -1037,7 +1357,7 @@ function startVendorApp() {
                       App.ui.initModal('edit-store-modal', () => {
                           document.getElementById('edit-nombre-tienda').value = data.tienda.nombre;
                           document.getElementById('edit-descripcion-tienda').value = data.tienda.descripcion;
-                          document.getElementById('edit-logo-preview').src = data.tienda.logoUrl || 'https://via.placeholder.com/150';
+                          document.getElementById('edit-logo-preview').src = data.tienda.logoUrl || '/img/logo-placeholder.svg';
                       });
                       const editForm = document.getElementById('edit-store-form');
                       if (editForm) {
@@ -1061,6 +1381,17 @@ function startVendorApp() {
                           // Cuando se abra el modal, inicializamos el nuevo componente de Opciones
                           App.components.Opciones.init();
                       });
+                      
+                      // Limpiar sesión al hacer logout
+                      const logoutForm = document.getElementById('logout-form');
+                      if (logoutForm) {
+                          logoutForm.addEventListener('submit', () => {
+                              // Limpiar datos de sesión antes del logout
+                              sessionStorage.removeItem('vendedor-session-active');
+                              localStorage.removeItem('vendedor-current-view');
+                              window.Logger.info('Session', 'Limpiando datos de sesión antes del logout');
+                          });
+                      }
                 },
                 ScheduleManager: {
                     init(horarios) {

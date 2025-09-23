@@ -1,60 +1,56 @@
 /**
- * @file Loader principal de utilidades para Uni-Eats
- * @description Carga e inicializa todos los sistemas de utilidades
+ * @file Inicializador final de utilidades para Uni-Eats
+ * @description Configuración final después de que todo esté cargado
  * @version 1.0
  */
 
-// Check if we're in a modern browser environment
-if (typeof window !== 'undefined') {
-    // Initialize utilities in the correct order
-    document.addEventListener('DOMContentLoaded', () => {
-        // Initialize performance monitoring
-        if (window.Performance) {
-            Logger?.info('Utils', 'Performance utilities loaded');
-        }
-        
-        // Initialize component system
-        if (window.Components) {
-            // Register common components
+// Only initialize after DOM is ready and all scripts are loaded
+window.addEventListener('load', () => {
+    // All utilities should be ready by now
+    if (window.Logger) {
+        Logger.info('Utils', 'All utility systems loaded and ready');
+    }
+    
+    // Register common components if Components is available
+    if (window.Components) {
+        try {
             Components.register('toast', new Components.ui.Toast());
             Components.register('loading', new Components.ui.LoadingOverlay());
             Components.register('modal', new Components.ui.Modal());
             
-            Logger?.info('Utils', 'Component system initialized');
-        }
-        
-        // Initialize icons system
-        if (window.Icons) {
-            Logger?.info('Utils', 'Icons system ready');
-        }
-        
-        // Initialize logger
-        if (window.Logger) {
-            Logger.info('Utils', 'All utility systems loaded and ready');
-        }
-        
-        // Global cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (window.Performance) {
-                Performance.cleanup();
+            if (window.Logger) {
+                Logger.info('Utils', 'Component system initialized');
             }
-            Logger?.info('Utils', 'Page cleanup completed');
-        });
-    });
-}
-
-// PWA optimizations
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
+        } catch (error) {
+            console.warn('Component registration failed:', error);
+        }
+    }
+    
+    // PWA Service Worker registration
+    if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/service-worker.js')
             .then(registration => {
-                Logger?.info('PWA', 'Service Worker registered successfully');
+                if (window.Logger) {
+                    Logger.info('PWA', 'Service Worker registered successfully');
+                }
             })
             .catch(error => {
-                Logger?.error('PWA', 'Service Worker registration failed', error);
+                if (window.Logger) {
+                    Logger.error('PWA', 'Service Worker registration failed', error);
+                }
             });
+    }
+    
+    // Global cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (window.Performance) {
+            Performance.cleanup();
+        }
+        if (window.Logger) {
+            Logger.info('Utils', 'Page cleanup completed');
+        }
     });
-}
+});
 
 // Export initialization status
 window.UtilsReady = true;

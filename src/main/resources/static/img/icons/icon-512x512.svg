@@ -1,0 +1,6 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#4f46e5"/>
+  <circle cx="256" cy="200" r="80" fill="white"/>
+  <path d="M160 350 Q210 310 256 320 Q302 310 352 350 L352 400 L160 400 Z" fill="white"/>
+  <text x="50%" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="42" fill="white" font-weight="bold">Uni-Eats</text>
+</svg>

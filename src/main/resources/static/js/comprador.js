@@ -208,7 +208,8 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const isValid = (Date.now() - State.pedidosCache.lastUpdate) < cacheTimeout;
             
-            if (!isValid) {
+            // Solo log si estamos en modo debug
+            if (!isValid && State.debugMode) {
                 console.log(`🔄 Caché expirado (${cacheTimeout}ms) - solicitando datos frescos`);
             }
             
@@ -404,14 +405,11 @@ document.addEventListener("DOMContentLoaded", () => {
             
             State.polling.interval = setInterval(async () => {
                 try {
-                    console.log(`🔄 Polling ejecutándose (cada ${State.polling.frequency}ms)`);
-                    
                     // 🎯 SIEMPRE ejecutar polling para detectar cambios (incluso en background)
                     const nuevosPedidos = await SmartCache.getMisPedidosOptimized();
                     
                     // Si estamos en la vista de pedidos, actualizar automáticamente la vista
                     if (State.vistaActual === 'misPedidos') {
-                        console.log('🔄 Actualizando vista de pedidos automáticamente');
                         Views.refreshPedidosView();
                     }
                     
@@ -1170,14 +1168,15 @@ document.addEventListener("DOMContentLoaded", () => {
         getCarritoHTML() {
             if (State.carrito.length === 0) return `<div class="text-center p-10"><i class="fas fa-shopping-cart text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">Tu carrito está vacío.</p><button class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg" data-action="navigate" data-view="inicio">Volver al inicio</button></div>`;
             
-            const total = State.carrito.reduce((sum, item) => sum + item.precioFinal * item.cantidad, 0);
+            // El precioFinal ya incluye la cantidad, no multiplicar de nuevo
+            const total = State.carrito.reduce((sum, item) => sum + item.precioFinal, 0);
             const itemsHtml = State.carrito.map((item, index) => `
                 <div class="flex items-start gap-4 py-4 border-b">
                     <div class="flex-grow">
                         <p class="font-bold">${item.cantidad}x ${item.nombre}</p>
                         ${item.opciones.map(op => `<p class="text-xs text-slate-500">+ ${op.nombre}</p>`).join('')}
                     </div>
-                    <p class="font-semibold w-24 text-right">${this.formatPrice(item.precioFinal * item.cantidad, false)}</p>
+                    <p class="font-semibold w-24 text-right">${this.formatPrice(item.precioFinal, false)}</p>
                     <button class="text-red-500 hover:text-red-700" data-action="remove-from-cart" data-index="${index}"><i class="fas fa-trash"></i></button>
                 </div>`).join('');
 
@@ -1520,37 +1519,32 @@ getCategoryBarHTML() {
             const vistaGuardada = State.vistaActual || 'inicio';
             Views.render(vistaGuardada);
             
-            // � INICIALIZAR POLLING AUTOMÁTICO EN LA NUBE
-            // Solo si no es localhost (en desarrollo local puede ser molesto)
-            const isCloud = !location.host.includes('localhost') && !location.host.includes('127.0.0.1');
-            if (isCloud) {
-                console.log('🌐 Estamos en la nube - inicializando polling automático para notificaciones');
-                
-                // Dar tiempo a que se cargue la vista, luego iniciar polling
-                setTimeout(async () => {
-                    try {
-                        // Verificar si hay pedidos activos antes de iniciar
-                        const pedidosIniciales = await Api.getMisPedidos();
-                        const hasActivePedidos = pedidosIniciales.some(p => 
-                            ['PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_RECOGER'].includes(p.estado)
-                        );
-                        
-                        if (hasActivePedidos) {
-                            console.log('✅ Pedidos activos detectados - iniciando polling');
-                            SmartPolling.adjustFrequency(true);
-                            SmartPolling.start();
-                        } else {
-                            console.log('📊 Sin pedidos activos - polling en modo background');
-                            SmartPolling.adjustFrequency(false);
-                            SmartPolling.start();
-                        }
-                    } catch (error) {
-                        console.error('❌ Error al inicializar polling automático:', error);
+            // 🚀 INICIALIZAR POLLING AUTOMÁTICO 
+            // Inicializar siempre, independientemente del entorno
+            console.log('🌐 Inicializando polling automático para notificaciones');
+            
+            // Dar tiempo a que se cargue la vista, luego iniciar polling
+            setTimeout(async () => {
+                try {
+                    // Verificar si hay pedidos activos antes de iniciar
+                    const pedidosIniciales = await Api.getMisPedidos();
+                    const hasActivePedidos = pedidosIniciales.some(p => 
+                        ['PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_RECOGER'].includes(p.estado)
+                    );
+                    
+                    if (hasActivePedidos) {
+                        console.log('✅ Pedidos activos detectados - iniciando polling');
+                        SmartPolling.adjustFrequency(true);
+                        SmartPolling.start();
+                    } else {
+                        console.log('📊 Sin pedidos activos - polling en modo background');
+                        SmartPolling.adjustFrequency(false);
+                        SmartPolling.start();
                     }
-                }, 2000); // 2 segundos después de cargar
-            } else {
-                console.log('🏠 Entorno local - polling manual');
-            }
+                } catch (error) {
+                    console.error('❌ Error al inicializar polling automático:', error);
+                }
+            }, 2000); // 2 segundos después de cargar
             
             // �🔔 Listener para mensajes del Service Worker
             navigator.serviceWorker?.addEventListener('message', (event) => {

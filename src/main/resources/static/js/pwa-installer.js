@@ -62,32 +62,36 @@ class PWAInstallManager {
         // Solo crear si no está instalada
         if (this.isInstalled) return;
 
-        // Crear botón flotante de instalación
+        // Crear banner principal de instalación
         this.installButton = document.createElement('div');
         this.installButton.id = 'pwa-install-prompt';
         this.installButton.innerHTML = `
-            <div class="fixed bottom-4 right-4 z-50 bg-indigo-600 text-white p-4 rounded-lg shadow-lg max-w-sm transform transition-all duration-300 translate-y-20 opacity-0" id="install-banner">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                            <i class="fas fa-mobile-alt text-indigo-600 text-lg"></i>
+            <!-- Banner Principal - Top -->
+            <div class="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-indigo-600 to-purple-600 text-white transform transition-all duration-500 -translate-y-full" id="install-banner-top">
+                <div class="px-4 py-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                <i class="fas fa-mobile-alt text-white text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg">📱 ¿Deseas descargar la App Móvil?</h3>
+                                <p class="text-sm text-indigo-100">Acceso rápido, funciona offline y como app nativa</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="font-semibold text-sm">Instalar Uni-Eats</h4>
-                            <p class="text-xs text-indigo-100">Acceso rápido desde tu pantalla principal</p>
-                        </div>
+                        <button id="close-install-prompt-top" class="text-white/70 hover:text-white p-1">
+                            <i class="fas fa-times text-lg"></i>
+                        </button>
                     </div>
-                    <button id="close-install-prompt" class="text-indigo-200 hover:text-white ml-2">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="mt-3 flex space-x-2">
-                    <button id="install-app-btn" class="bg-white text-indigo-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-indigo-50 transition-colors">
-                        <i class="fas fa-download mr-1"></i>Instalar
-                    </button>
-                    <button id="maybe-later-btn" class="text-indigo-100 px-3 py-1 rounded-md text-sm hover:text-white transition-colors">
-                        Más tarde
-                    </button>
+                    <div class="mt-3 flex space-x-3">
+                        <button id="install-app-btn-top" class="bg-white text-indigo-600 px-6 py-2 rounded-full font-bold text-sm hover:bg-indigo-50 transition-all flex items-center space-x-2 shadow-lg">
+                            <i class="fas fa-download"></i>
+                            <span>Instalar App</span>
+                        </button>
+                        <button id="maybe-later-btn-top" class="text-white/90 px-4 py-2 rounded-full text-sm hover:text-white transition-colors border border-white/30">
+                            Más tarde
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -95,15 +99,15 @@ class PWAInstallManager {
         document.body.appendChild(this.installButton);
 
         // Event listeners para los botones
-        document.getElementById('install-app-btn').addEventListener('click', () => {
+        document.getElementById('install-app-btn-top').addEventListener('click', () => {
             this.installApp();
         });
 
-        document.getElementById('close-install-prompt').addEventListener('click', () => {
+        document.getElementById('close-install-prompt-top').addEventListener('click', () => {
             this.hideInstallButton();
         });
 
-        document.getElementById('maybe-later-btn').addEventListener('click', () => {
+        document.getElementById('maybe-later-btn-top').addEventListener('click', () => {
             this.hideInstallButton();
             // No mostrar por 24 horas
             localStorage.setItem('pwa-install-dismissed', Date.now() + (24 * 60 * 60 * 1000));
@@ -120,29 +124,30 @@ class PWAInstallManager {
             return;
         }
 
-        // Mostrar después de 5 segundos en la página
+        // Mostrar banner principal después de 3 segundos
         setTimeout(() => {
-            const banner = document.getElementById('install-banner');
-            if (banner) {
-                banner.classList.remove('translate-y-20', 'opacity-0');
-                banner.classList.add('translate-y-0', 'opacity-100');
+            const topBanner = document.getElementById('install-banner-top');
+            if (topBanner) {
+                topBanner.classList.remove('-translate-y-full');
+                topBanner.classList.add('translate-y-0');
             }
-        }, 5000);
+        }, 3000);
     }
 
     hideInstallButton() {
-        const banner = document.getElementById('install-banner');
-        if (banner) {
-            banner.classList.add('translate-y-20', 'opacity-0');
-            banner.classList.remove('translate-y-0', 'opacity-100');
-            
-            setTimeout(() => {
-                if (this.installButton) {
-                    this.installButton.remove();
-                    this.installButton = null;
-                }
-            }, 300);
+        const topBanner = document.getElementById('install-banner-top');
+        if (topBanner) {
+            topBanner.classList.add('-translate-y-full');
+            topBanner.classList.remove('translate-y-0');
         }
+        
+        // Remover completamente después de la animación
+        setTimeout(() => {
+            if (this.installButton) {
+                this.installButton.remove();
+                this.installButton = null;
+            }
+        }, 500);
     }
 
     async installApp() {

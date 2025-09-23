@@ -1,21 +1,87 @@
 {
-  "name": "Uni-Eats Vendedor",
+  "name": "Uni-Eats - Campus Food Marketplace",
   "short_name": "Uni-Eats",
-  "description": "Panel de control para vendedores de Uni-Eats Marketplace.",
+  "description": "Plataforma de pedidos de comida para estudiantes universitarios. Escanea QR, ordena y recibe notificaciones cuando tu comida esté lista.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#4f46e5",
+  "background_color": "#f8fafc",
+  "lang": "es",
+  "scope": "/",
   "icons": [
     {
       "src": "/img/icons/icon-192x192.svg",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
       "src": "/img/icons/icon-512x512.svg",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": "/dashboard/vendedor",
-  "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#4f46e5"
+  "screenshots": [
+    {
+      "src": "/img/screenshots/mobile-home.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Pantalla principal móvil"
+    },
+    {
+      "src": "/img/screenshots/desktop-dashboard.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Dashboard de vendedor"
+    }
+  ],
+  "categories": ["food", "education", "shopping"],
+  "shortcuts": [
+    {
+      "name": "Panel Vendedor",
+      "short_name": "Vendedor",
+      "description": "Acceso rápido al panel de vendedor",
+      "url": "/dashboard/vendedor",
+      "icons": [
+        {
+          "src": "/img/icons/icon-192x192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Explorar Tiendas",
+      "short_name": "Tiendas",
+      "description": "Ver todas las tiendas disponibles",
+      "url": "/dashboard/comprador",
+      "icons": [
+        {
+          "src": "/img/icons/icon-192x192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+unieats",
+      "url": "/handle?type=%s"
+    }
+  ]
 }

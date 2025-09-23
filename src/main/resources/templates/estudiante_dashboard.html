@@ -9,6 +9,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Uni-Eats">
+    
+    <!-- PWA Icons -->
+    <link rel="apple-touch-icon" href="/img/icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/icons/icon-32x32.png">
+    
+    <!-- PWA Styles -->
+    <link rel="stylesheet" href="/css/pwa-styles.css">
+    
     <style>
         body { font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
         /* Ocultar scrollbars en carruseles */
@@ -33,18 +48,55 @@
         .animate-slide-down { animation: slide-down 0.4s ease-out forwards; }
         @keyframes fade-out { to { opacity: 0; } }
         .animate-fade-out { animation: fade-out 0.3s ease-in forwards; }
+        
+        /* 📱 NAVEGACIÓN FIJA MOBILE - ESENCIAL PWA */
+        #app-nav {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 99999 !important;
+            background: rgba(255, 255, 255, 0.98) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border-top: 1px solid #e5e7eb !important;
+            padding-bottom: env(safe-area-inset-bottom, 8px) !important;
+            box-shadow: 0 -4px 6px -1px rgb(0 0 0 / 0.1) !important;
+        }
+        
+        /* Espacio para el contenido para que no se oculte detrás del nav */
+        #app-container {
+            padding-bottom: 90px !important; /* Altura del nav + margen extra */
+            min-height: calc(100vh - 90px) !important;
+        }
+        
+        /* Ajuste del contenedor principal */
+        body .bg-gradient-to-br {
+            padding-bottom: 0 !important;
+        }
+        
+        /* En PWA standalone, ajustar para safe areas */
+        @media (display-mode: standalone) {
+            #app-nav {
+                padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+            }
+            #app-container {
+                padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+                min-height: calc(100vh - 100px - env(safe-area-inset-bottom, 0px)) !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-slate-100">
 
-    <div class="w-full bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100 min-h-screen pb-20">
+    <div class="w-full bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100 min-h-screen">
         <header id="app-header" class="sticky top-0 bg-white/95 backdrop-blur-xl shadow-md z-20 border-b border-gray-200">
             <!-- Header content will be managed by JavaScript -->
         </header>
         <main id="app-container" class="px-1 pt-1"></main>
     </div>
 
-    <nav id="app-nav" class="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 flex justify-around z-20 shadow-lg py-2">
+    <nav id="app-nav" class="flex justify-around shadow-lg py-2">
         <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-1 relative group" data-view="inicio">
             <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
                 <i class="fas fa-home text-white text-xs"></i>
@@ -71,6 +123,118 @@
         </a>
     </nav>
     
+    <!-- PWA Scripts -->
+    <script src="/js/pwa-config.js"></script>
+    <script src="/js/connection-manager.js"></script>
+    <script src="/js/image-optimizer.js"></script>
+    <script src="/js/pwa-installer.js"></script>
+    <script src="/js/push-notifications.js"></script>
+    <script src="/js/pwa-init.js"></script>
+    
+    <!-- Main App Script -->
     <script th:src="@{/js/comprador.js}"></script>
+
+    <script>
+        // PWA Enhancements para estudiantes
+        document.addEventListener('DOMContentLoaded', function() {
+            // Agregar indicador de conexión
+            const nav = document.getElementById('app-nav');
+            if (nav) {
+                const connectionIndicator = document.createElement('div');
+                connectionIndicator.innerHTML = `
+                    <i class="fas fa-wifi network-status-icon text-green-500 text-xs"></i>
+                `;
+                connectionIndicator.className = 'absolute top-1 right-2 z-50';
+                nav.style.position = 'relative';
+                nav.appendChild(connectionIndicator);
+            }
+
+            // Pull-to-refresh en móviles
+            let startY = 0;
+            let pullDistance = 0;
+            const container = document.getElementById('app-container');
+            
+            if (container) {
+                container.addEventListener('touchstart', (e) => {
+                    startY = e.touches[0].clientY;
+                });
+
+                container.addEventListener('touchmove', (e) => {
+                    const currentY = e.touches[0].clientY;
+                    pullDistance = currentY - startY;
+                    
+                    if (pullDistance > 0 && window.scrollY === 0) {
+                        e.preventDefault();
+                        // Visual feedback para pull-to-refresh
+                        if (pullDistance > 60) {
+                            document.body.style.transform = `translateY(${Math.min(pullDistance * 0.3, 30)}px)`;
+                        }
+                    }
+                });
+
+                container.addEventListener('touchend', () => {
+                    if (pullDistance > 60 && window.scrollY === 0) {
+                        // Trigger refresh
+                        window.location.reload();
+                    }
+                    
+                    // Reset transform
+                    document.body.style.transform = '';
+                    pullDistance = 0;
+                });
+            }
+
+            // Configurar notificaciones para estudiantes
+            if (window.PushManager) {
+                window.PushManager.setVapidPublicKey('YOUR_VAPID_PUBLIC_KEY_HERE');
+                
+                // Auto-subscribe with student preferences
+                setTimeout(() => {
+                    window.PushManager.subscribe({
+                        orderUpdates: true,
+                        promotions: true,
+                        newOrders: false // Students don't need new order notifications
+                    }).catch(err => {
+                        console.log('Usuario no aceptó notificaciones:', err.message);
+                    });
+                }, 5000);
+            }
+
+            // Escuchar eventos de navegación desde notificaciones
+            window.addEventListener('trackOrder', (e) => {
+                const { orderId } = e.detail;
+                // Navigate to order tracking
+                const nav = document.querySelector('[data-view="misPedidos"]');
+                if (nav) nav.click();
+                
+                // Show specific order details
+                setTimeout(() => {
+                    const orderElement = document.querySelector(`[data-order-id="${orderId}"]`);
+                    if (orderElement) {
+                        orderElement.scrollIntoView({ behavior: 'smooth' });
+                        orderElement.classList.add('ring-2', 'ring-blue-500');
+                    }
+                }, 1000);
+            });
+
+            // Offline handling para carrito
+            window.addEventListener('connectionchange', (e) => {
+                const { isOnline } = e.detail;
+                
+                if (!isOnline) {
+                    // Show offline banner
+                    const offlineBanner = document.createElement('div');
+                    offlineBanner.id = 'student-offline-banner';
+                    offlineBanner.className = 'fixed top-0 left-0 right-0 bg-amber-500 text-white text-center py-2 text-sm z-50';
+                    offlineBanner.innerHTML = '📱 Modo offline - Los pedidos se enviarán cuando recuperes conexión';
+                    document.body.appendChild(offlineBanner);
+                } else {
+                    // Remove offline banner
+                    const banner = document.getElementById('student-offline-banner');
+                    if (banner) banner.remove();
+                }
+            });
+        });
+    </script>
 </body>
 </html>

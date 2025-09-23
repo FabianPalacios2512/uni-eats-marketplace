@@ -24,7 +24,6 @@ public class VendedorServiceImpl implements VendedorService {
     @Autowired private PedidoRepository pedidoRepository;
     @Autowired private ProductoRepository productoRepository;
     @Autowired private CategoriaOpcionRepository categoriaOpcionRepository;
-    @Autowired private OpcionRepository opcionRepository;
     @Autowired private S3ImageService s3ImageService;
 
     @Override

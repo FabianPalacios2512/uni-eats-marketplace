@@ -127,11 +127,14 @@
         </div>
     </div>
 
+    <!-- Utilidades del sistema optimizadas para PWA -->
+    <script src="/js/utils/logger.js"></script>
+    <script src="/js/utils/icons.js"></script>
+    <script src="/js/utils/performance.js"></script>
+    <script src="/js/utils/components.js"></script>
+    <script src="/js/utils/init.js"></script>
+    
+    <!-- Script principal del vendedor -->
     <script src="/js/vendedor.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => { navigator.serviceWorker.register('/service-worker.js'); });
-      }
-    </script>
 </body>
 </html>

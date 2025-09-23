@@ -1,10 +1,27 @@
 /**
  * @file Script principal para el Dashboard de Vendedores de Uni-Eats.
  * @description Gestiona la renderización, lógica y comunicación con el API para el panel de control del vendedor.
- * @version 8.0 (Final - Ciclo Completo)
+ * @version 9.0 (Optimizado para PWA - Sistema modular)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Wait for utilities to be ready
+    const initializeApp = () => {
+        if (!window.UtilsReady) {
+            setTimeout(initializeApp, 50);
+            return;
+        }
+        
+        // Now we can safely use our utilities
+        Logger.info('VendorApp', 'Initializing Vendor Dashboard with optimized utilities');
+        
+        startVendorApp();
+    };
+    
+    initializeApp();
+});
+
+function startVendorApp() {
 
     const App = {
         config: {
@@ -41,11 +58,13 @@ document.addEventListener('DOMContentLoaded', () => {
             isPollingActive: false, // Track polling state
             lastPedidosHash: null, // Hash of last pedidos data to detect real changes
             currentPedidos: [], // Store current pedidos for comparison
-            pollingInterval: 10000, // Start with 10 seconds (fast)
-            maxPollingInterval: 30000, // Max 30 seconds (slow)
-            minPollingInterval: 5000, // Min 5 seconds (very fast)
+            pollingInterval: 30000, // Start with 30 seconds (reasonable)
+            maxPollingInterval: 120000, // Max 2 minutes (very slow)
+            minPollingInterval: 15000, // Min 15 seconds (fast but not aggressive)
             consecutiveNoChanges: 0, // Counter for no changes
-            lastActivityTime: Date.now() // Track last activity
+            lastActivityTime: Date.now(), // Track last activity
+            isUserActive: true, // Track if user is actively using the app
+            lastUserInteraction: Date.now() // Track last user interaction
         },
 
         api: {
@@ -62,14 +81,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (options.body) {
                         headers['Content-Type'] = 'application/json';
                     }
-                    const response = await fetch(endpoint, { ...options, headers });
+                    
+                    // Add timeout to prevent hanging requests
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                    
+                    const response = await fetch(endpoint, { 
+                        ...options, 
+                        headers,
+                        signal: controller.signal 
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
                     if (!response.ok) {
                         const errorText = await response.text();
                         throw new Error(errorText || `Error del servidor: ${response.status}`);
                     }
                     return response;
                 } catch (error) {
-                    console.error(`Error en la petición a ${endpoint}:`, error);
+                    if (error.name === 'AbortError') {
+                        Logger.warn('API', `Request timeout to ${endpoint}`);
+                        App.ui.showToast('La solicitud tardó demasiado tiempo', 'error');
+                        throw new Error('Tiempo de espera agotado');
+                    }
+                    Logger.error('API', `Request failed to ${endpoint}`, error);
                     App.ui.showToast(`Error: ${error.message}`, 'error');
                     throw error;
                 } finally {
@@ -86,10 +122,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showToast(message, type = 'success') {
                 const toast = document.createElement('div');
-                const icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
-                const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-amber-500' };
+                const iconClass = Icons.getClass(`status.${type}`);
+                const colors = { 
+                    success: 'bg-green-500', 
+                    error: 'bg-red-500', 
+                    info: 'bg-blue-500', 
+                    warning: 'bg-amber-500' 
+                };
+                
                 toast.className = `fixed bottom-24 right-5 ${colors[type]} text-white py-3 px-5 rounded-lg shadow-xl flex items-center gap-3 animate-fadeIn z-50`;
-                toast.innerHTML = `<i class="fas ${icons[type]}"></i><p>${message}</p>`;
+                toast.innerHTML = `<i class="${iconClass}"></i><p>${message}</p>`;
+                
                 document.body.appendChild(toast);
                 setTimeout(() => {
                     toast.classList.add('animate-fadeOut');
@@ -266,14 +309,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const mainContent = document.getElementById('main-content');
                     if (!mainContent) return;
                     App.state.fabButton = document.querySelector('[data-modal-open="product-modal"]');
+                    
+                    // Render all components immediately - no async blocking
                     mainContent.innerHTML = `
                         ${App.components.Pedidos.render(data)}
                         ${App.components.Productos.render(data)}
                         ${App.components.Perfil.render(data)}
                     `;
-                    App.components.Pedidos.init(data);
+                    
+                    // Initialize components immediately - make them non-blocking
+                    App.components.Pedidos.initNonBlocking(data);
                     App.components.Productos.init(data);
                     App.components.Perfil.init(data);
+                    
                     document.querySelectorAll('.nav-link').forEach(link => {
                         link.addEventListener('click', (e) => { e.preventDefault(); App.ui.switchView(link.dataset.target); });
                     });
@@ -282,10 +330,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     const savedView = localStorage.getItem('vendedor-current-view') || 'pedidos';
                     App.ui.switchView(savedView);
 
-                    // Initialize real-time updates if starting on pedidos view
+                    // Load pedidos data in background after UI is ready
                     if (savedView === 'pedidos') {
-                        App.components.Pedidos.startPolling();
+                        // Start loading pedidos in background, no await
+                        this.loadPedidosInBackground();
                     }
+                },
+                
+                async loadPedidosInBackground() {
+                    // Small delay to let UI render first
+                    setTimeout(async () => {
+                        try {
+                            console.log('🔄 Loading pedidos in background...');
+                            await App.components.Pedidos.loadPedidos();
+                            console.log('✅ Pedidos loaded successfully in background');
+                            // Start polling only after first load is complete
+                            App.components.Pedidos.startPolling();
+                        } catch (error) {
+                            console.error('❌ Error loading pedidos in background:', error);
+                            // Don't block UI for background errors
+                        }
+                    }, 100); // 100ms delay to let UI render
                 }
             },
             
@@ -345,9 +410,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     await this.loadPedidos();
                 },
 
+                initNonBlocking(data) {
+                    const container = document.getElementById('pedidos-container');
+                    if (!container) return;
+
+                    // Show initial loading state
+                    container.innerHTML = `
+                        <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                            <i class="fas fa-spinner fa-spin text-2xl text-indigo-500 mb-3"></i>
+                            <p class="text-slate-600">Cargando pedidos...</p>
+                        </div>
+                    `;
+
+                    container.removeEventListener('click', this.handlePedidoAction);
+                    container.addEventListener('click', this.handlePedidoAction);
+                },
+
                 async loadPedidos() {
                     const container = document.getElementById('pedidos-container');
                     if (!container) return;
+
+                    // Show subtle sync indicator only when user is active and it's not the first load
+                    let syncIndicator = null;
+                    const isFirstLoad = container.innerHTML.includes('Cargando pedidos...');
+                    
+                    if (App.state.isUserActive && !isFirstLoad) {
+                        syncIndicator = this.showSyncIndicator();
+                    }
 
                     try {
                         const response = await fetch(App.config.apiEndpoints.getPedidos);
@@ -357,16 +446,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Check if there are actual changes before updating UI
                         const hasChanges = App.ui.checkForPedidosChanges(pedidos);
                         
-                        if (hasChanges) {
+                        if (hasChanges || isFirstLoad) {
                             // Reset counter and speed up polling when there are changes
                             App.state.consecutiveNoChanges = 0;
                             App.state.lastActivityTime = Date.now();
                             this.adjustPollingSpeed(true);
                             
-                            // Check for new orders and show notification
-                            App.ui.showNewOrderNotification(pedidos.length);
+                            // Check for new orders and show notification (but not on first load)
+                            if (!isFirstLoad) {
+                                App.ui.showNewOrderNotification(pedidos.length);
+                            }
                             
-                            // Update UI only if there are changes
+                            // Update UI if there are changes or it's first load
                             this.renderPedidos(pedidos, container);
                         } else {
                             // Increment counter and slow down polling when no changes
@@ -376,27 +467,90 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         return pedidos;
                     } catch (error) {
-                        container.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center text-red-500"><p>${error.message}</p></div>`;
+                        const errorMsg = isFirstLoad ? 
+                            `<div class="bg-white p-6 rounded-xl shadow-md text-center text-red-500">
+                                <i class="fas fa-exclamation-triangle text-2xl mb-3"></i>
+                                <p>Error al cargar pedidos</p>
+                                <button onclick="App.components.Pedidos.loadPedidos()" class="mt-3 bg-red-500 text-white px-4 py-2 rounded-lg">
+                                    <i class="fas fa-redo mr-2"></i>Reintentar
+                                </button>
+                            </div>` :
+                            `<div class="bg-white p-6 rounded-xl shadow-md text-center text-red-500"><p>${error.message}</p></div>`;
+                        
+                        container.innerHTML = errorMsg;
                         return [];
+                    } finally {
+                        // Hide sync indicator when request is complete
+                        if (syncIndicator) {
+                            this.hideSyncIndicator(syncIndicator);
+                        }
+                    }
+                },
+
+                showSyncIndicator() {
+                    // Only show if user is actively looking at the page
+                    if (!App.state.isUserActive || document.hidden) return null;
+                    
+                    const indicator = document.createElement('div');
+                    indicator.id = 'sync-indicator';
+                    indicator.className = 'fixed top-20 right-5 bg-blue-500 text-white text-xs px-3 py-1 rounded-full shadow-lg z-50 opacity-75 transition-opacity duration-300';
+                    indicator.innerHTML = `<i class="fas fa-sync-alt fa-spin mr-1"></i>Sincronizando...`;
+                    
+                    // Remove any existing indicator
+                    const existing = document.getElementById('sync-indicator');
+                    if (existing) existing.remove();
+                    
+                    document.body.appendChild(indicator);
+                    return indicator;
+                },
+
+                hideSyncIndicator(indicator) {
+                    if (indicator) {
+                        indicator.style.opacity = '0';
+                        setTimeout(() => {
+                            if (indicator.parentNode) {
+                                indicator.parentNode.removeChild(indicator);
+                            }
+                        }, 300);
                     }
                 },
 
                 adjustPollingSpeed(hasChanges) {
-                    if (hasChanges) {
-                        // Speed up when there are changes - go to minimum interval
+                    // Check user activity - if user hasn't interacted in 5 minutes, slow down significantly
+                    const timeSinceLastInteraction = Date.now() - App.state.lastUserInteraction;
+                    const fiveMinutes = 5 * 60 * 1000;
+                    const tenMinutes = 10 * 60 * 1000;
+                    
+                    if (timeSinceLastInteraction > tenMinutes) {
+                        // Very slow polling if user is away for more than 10 minutes
+                        App.state.pollingInterval = 300000; // 5 minutes
+                        App.state.isUserActive = false;
+                        console.log('😴 Usuario inactivo - Polling muy lento:', App.state.pollingInterval / 1000, 'segundos');
+                    } else if (timeSinceLastInteraction > fiveMinutes) {
+                        // Slower polling if user is away for more than 5 minutes
+                        App.state.pollingInterval = App.state.maxPollingInterval;
+                        App.state.isUserActive = false;
+                        console.log('💤 Usuario algo inactivo - Polling lento:', App.state.pollingInterval / 1000, 'segundos');
+                    } else if (hasChanges) {
+                        // Speed up when there are changes and user is active
                         App.state.pollingInterval = App.state.minPollingInterval;
+                        App.state.isUserActive = true;
                         console.log('🚀 Polling acelerado a', App.state.pollingInterval / 1000, 'segundos (actividad detectada)');
                     } else {
-                        // Slow down gradually when no changes
-                        if (App.state.consecutiveNoChanges >= 3) {
-                            // After 3 checks without changes, start slowing down
-                            const slowDownFactor = Math.min(App.state.consecutiveNoChanges - 2, 4); // Max 4x slower
+                        // Normal polling when no changes but user is active
+                        if (App.state.consecutiveNoChanges >= 5) {
+                            // After 5 checks without changes, start slowing down gradually
+                            const slowDownFactor = Math.min(App.state.consecutiveNoChanges - 4, 3); // Max 3x slower
                             App.state.pollingInterval = Math.min(
-                                App.state.minPollingInterval * (1 + slowDownFactor * 0.5),
+                                App.state.minPollingInterval * (1 + slowDownFactor * 0.8),
                                 App.state.maxPollingInterval
                             );
-                            console.log('🐌 Polling ralentizado a', App.state.pollingInterval / 1000, 'segundos (sin actividad)');
+                            console.log('🐌 Polling ralentizado a', App.state.pollingInterval / 1000, 'segundos (sin cambios)');
+                        } else {
+                            // Keep normal interval for first few checks without changes
+                            App.state.pollingInterval = 45000; // 45 seconds
                         }
+                        App.state.isUserActive = true;
                     }
                     
                     // Restart polling with new interval
@@ -425,10 +579,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     App.state.isPollingActive = true;
                     App.state.consecutiveNoChanges = 0; // Reset counter
-                    App.state.pollingInterval = App.state.minPollingInterval; // Start fast
+                    App.state.pollingInterval = 45000; // Start with moderate speed (45 seconds)
+                    App.state.lastUserInteraction = Date.now(); // Reset user activity
                     
-                    // Start with fast polling
-                    console.log('🚀 Iniciando polling adaptativo en', App.state.pollingInterval / 1000, 'segundos');
+                    // Start with moderate polling - not too aggressive
+                    console.log('🚀 Iniciando polling inteligente cada', App.state.pollingInterval / 1000, 'segundos');
                     App.state.pedidosPolling = setInterval(async () => {
                         if (App.state.currentView === 'pedidos') {
                             await this.loadPedidos();
@@ -1053,7 +1208,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         },
 
-       
+        // Function to remove all loading indicators
+        removeAllLoadingIndicators() {
+            // Remove sync indicators
+            const syncIndicator = document.getElementById('sync-indicator');
+            if (syncIndicator) syncIndicator.remove();
+            
+            // Remove any spinners that might be stuck
+            const spinners = document.querySelectorAll('.fa-spinner');
+            spinners.forEach(spinner => {
+                const container = spinner.closest('.flex, .bg-white, div');
+                if (container && container.textContent.includes('Cargando')) {
+                    container.remove();
+                }
+            });
+            
+            // Remove main loading container if still present
+            const loadingContainers = document.querySelectorAll('div[class*="h-screen"]');
+            loadingContainers.forEach(container => {
+                if (container.textContent.includes('Cargando Dashboard') || 
+                    container.textContent.includes('Preparando tu panel')) {
+                    container.remove();
+                }
+            });
+            
+            console.log('🧹 All loading indicators cleaned up');
+        },
 
         async init() {
             if (!this.config.container) {
@@ -1061,27 +1241,106 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.innerHTML = '<p class="text-red-500 text-center mt-10">Error de configuración: #vendor-dashboard-container no existe.</p>';
                 return;
             }
-            this.config.container.innerHTML = `<div class="flex justify-center items-center h-screen"><i class="fas fa-spinner fa-spin text-4xl text-indigo-500"></i></div>`;
+            
+            // Show immediate loading indicator
+            this.config.container.innerHTML = `
+                <div class="flex flex-col justify-center items-center h-screen bg-slate-50">
+                    <div class="bg-white p-8 rounded-2xl shadow-lg text-center">
+                        <i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-4"></i>
+                        <h2 class="text-xl font-bold text-slate-800 mb-2">Cargando Dashboard</h2>
+                        <p class="text-slate-600">Preparando tu panel de control...</p>
+                    </div>
+                </div>
+            `;
+
+            // Add timeout to prevent hanging
+            const loadTimeout = setTimeout(() => {
+                console.warn('⚠️ Dashboard load timeout - forcing UI render');
+                this.ui.render(`
+                    <div class="p-8 text-center text-yellow-600 bg-slate-50 min-h-screen flex items-center justify-center">
+                        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+                            <i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-4"></i>
+                            <h2 class="text-xl font-bold mb-2">Carga lenta</h2>
+                            <p class="text-slate-600 mb-4">El dashboard está tardando más de lo esperado</p>
+                            <button onclick="window.location.reload()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                                <i class="fas fa-redo mr-2"></i>Reintentar
+                            </button>
+                        </div>
+                    </div>
+                `);
+            }, 15000); // 15 seconds timeout
+
             try {
+                console.time('Dashboard Load Time');
                 const response = await fetch(this.config.apiEndpoints.getDashboard);
+                
+                // Clear timeout since load is progressing
+                clearTimeout(loadTimeout);
+                
                 if (response.status === 404) {
+                    console.log('🏪 No store found, showing welcome screen');
                     this.ui.render(this.components.Welcome.render());
                     this.components.Welcome.init();
                 } else if (response.ok) {
                     const data = await response.json();
+                    console.log('✅ Dashboard data loaded:', data);
+                    
+                    // Update state immediately
                     this.state = { ...this.state, ...data };
+                    
+                    // Render UI immediately - this removes the loading indicator
                     this.ui.render(this.components.Dashboard.render(this.state.tienda));
+                    
+                    // Initialize dashboard components (now non-blocking)
                     this.components.Dashboard.init(this.state);
+                    
+                    console.timeEnd('Dashboard Load Time');
+                    console.log('🚀 Dashboard rendered successfully - UI should be ready now');
+                    
+                    // Force remove any remaining loading indicators
+                    this.removeAllLoadingIndicators();
                 } else {
                     throw new Error(`Error del servidor: ${await response.text()}`);
                 }
             } catch (error) {
-                this.ui.render(`<div class="p-8 text-center text-red-600"><p><strong>Error al cargar el dashboard:</strong> ${error.message}</p></div>`);
+                // Clear timeout in case of error
+                clearTimeout(loadTimeout);
+                
+                console.error('❌ Dashboard load error:', error);
+                this.ui.render(`
+                    <div class="p-8 text-center text-red-600 bg-slate-50 min-h-screen flex items-center justify-center">
+                        <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md">
+                            <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+                            <h2 class="text-xl font-bold mb-2">Error al cargar</h2>
+                            <p class="text-slate-600 mb-4">${error.message}</p>
+                            <button onclick="window.location.reload()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                                <i class="fas fa-redo mr-2"></i>Reintentar
+                            </button>
+                        </div>
+                    </div>
+                `);
             }
         }
     };
 
     App.init();
+
+    // Track user activity for intelligent polling
+    const trackUserActivity = () => {
+        App.state.lastUserInteraction = Date.now();
+        if (!App.state.isUserActive) {
+            App.state.isUserActive = true;
+            // If polling is active and user became active again, restart with faster polling
+            if (App.state.isPollingActive && App.state.currentView === 'pedidos') {
+                App.components.Pedidos.adjustPollingSpeed(false);
+            }
+        }
+    };
+
+    // Listen for user activity events
+    ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'].forEach(event => {
+        document.addEventListener(event, trackUserActivity, { passive: true });
+    });
 
     // Cleanup when page is unloaded
     window.addEventListener('beforeunload', () => {
@@ -1091,10 +1350,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Stop polling when page becomes hidden (browser tab switch, minimize, etc.)
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
+            console.log('👁️ Página oculta - pausando polling');
             App.components.Pedidos.stopPolling();
         } else if (App.state.currentView === 'pedidos') {
             // Resume polling when page becomes visible again and we're on pedidos view
+            Logger.debug('VendorApp', 'Página visible - reanudando polling');
+            trackUserActivity(); // Mark as active
             App.components.Pedidos.startPolling();
         }
     });
-});
+    
+} // End of startVendorApp function

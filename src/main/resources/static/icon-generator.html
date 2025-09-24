@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <canvas id="canvas192" width="192" height="192" style="display:none;"></canvas>
+    <canvas id="canvas512" width="512" height="512" style="display:none;"></canvas>
+    
+    <script>
+        // SVG content
+        const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+            <circle cx="256" cy="256" r="256" fill="#4f46e5"/>
+            <text x="256" y="320" text-anchor="middle" fill="white" font-size="200" font-family="Arial, sans-serif" font-weight="bold">U</text>
+            <circle cx="256" cy="130" r="25" fill="white" opacity="0.3"/>
+            <rect x="206" y="380" width="100" height="8" rx="4" fill="white" opacity="0.4"/>
+        </svg>`;
+
+        function createIcon(size) {
+            const canvas = document.getElementById(`canvas${size}`);
+            const ctx = canvas.getContext('2d');
+            
+            const img = new Image();
+            const svgBlob = new Blob([svgContent], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(svgBlob);
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                // Convert to PNG and download
+                canvas.toBlob(function(blob) {
+                    const link = document.createElement('a');
+                    link.download = `icon-${size}x${size}.png`;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                    URL.revokeObjectURL(url);
+                }, 'image/png');
+            };
+            
+            img.src = url;
+        }
+
+        // Generate icons
+        setTimeout(() => {
+            createIcon(192);
+            setTimeout(() => createIcon(512), 1000);
+        }, 500);
+    </script>
+</body>
+</html>

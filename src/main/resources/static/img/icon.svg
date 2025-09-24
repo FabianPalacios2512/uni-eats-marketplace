@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fondo circular azul -->
+  <circle cx="256" cy="256" r="256" fill="#4f46e5"/>
+  
+  <!-- Letra U blanca centrada -->
+  <text x="256" y="320" text-anchor="middle" fill="white" font-size="200" font-family="Arial, sans-serif" font-weight="bold">U</text>
+  
+  <!-- Círculo decorativo más pequeño -->
+  <circle cx="256" cy="130" r="25" fill="white" opacity="0.3"/>
+  
+  <!-- Línea decorativa -->
+  <rect x="206" y="380" width="100" height="8" rx="4" fill="white" opacity="0.4"/>
+</svg>

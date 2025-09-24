@@ -4,10 +4,12 @@
  */
 class PWAInstallManager {
     constructor() {
+        console.log('📱 PWA: Iniciando PWAInstallManager...');
         this.deferredPrompt = null;
         this.installButton = null;
         this.isInstalled = false;
         this.init();
+        console.log('📱 PWA: PWAInstallManager inicializado completamente');
     }
 
     init() {
@@ -56,6 +58,28 @@ class PWAInstallManager {
                 this.hideInstallButton();
             }
         });
+
+        // Si no hay beforeinstallprompt después de 3 segundos, mostrar instrucciones manuales
+        setTimeout(() => {
+            if (!this.deferredPrompt && !this.isInstalled) {
+                console.log('📱 PWA: No hay evento beforeinstallprompt, mostrando instalación manual');
+                this.showManualInstallInstructions();
+            }
+        }, 3000);
+    }
+
+    showManualInstallInstructions() {
+        // Verificar si fue rechazado recientemente
+        const dismissedUntil = localStorage.getItem('pwa-install-dismissed');
+        if (dismissedUntil && Date.now() < parseInt(dismissedUntil)) {
+            console.log('📱 PWA: Install prompt dismissed, esperando...');
+            return;
+        }
+
+        // Mostrar banner de instrucciones después de 2 segundos
+        setTimeout(() => {
+            this.showInstallButton();
+        }, 2000);
     }
 
     createInstallButton() {
@@ -362,6 +386,18 @@ class PWAInstallManager {
     }
 
     showDownloadOptions() {
+        console.log('📱 PWA: Mostrando opciones de descarga...');
+        console.log('📱 PWA: URL actual:', window.location.href);
+        console.log('📱 PWA: Protocolo:', window.location.protocol);
+        console.log('📱 PWA: DeferredPrompt disponible:', !!this.deferredPrompt);
+        
+        // Detectar si estamos en un entorno que soporta PWA
+        const isHttps = window.location.protocol === 'https:';
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const isPWACapable = 'serviceWorker' in navigator && (isHttps || isLocalhost);
+        
+        console.log('📱 PWA: HTTPS:', isHttps, 'Localhost:', isLocalhost, 'PWA Capable:', isPWACapable);
+        
         // Crear modal con opciones de descarga
         const modal = document.createElement('div');
         modal.id = 'download-options-modal';
@@ -380,43 +416,49 @@ class PWAInstallManager {
 
                         <!-- Opciones -->
                         <div class="space-y-3 mb-6">
-                            <!-- Opción PWA -->
+                            <!-- Opción PWA - Solo si está disponible -->
+                            ${this.deferredPrompt ? `
                             <div class="border border-indigo-200 rounded-xl p-4 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 transition-all cursor-pointer" onclick="window.pwaInstaller?.installApp(); window.pwaInstaller?.closeDownloadModal();">
                                 <div class="flex items-center space-x-3">
                                     <div class="w-12 h-12 bg-indigo-500 rounded-xl flex items-center justify-center">
                                         <i class="fas fa-rocket text-white text-lg"></i>
                                     </div>
                                     <div class="flex-1">
-                                        <h3 class="font-bold text-gray-800">Instalar como App</h3>
-                                        <p class="text-sm text-gray-600">Funciona offline, notificaciones push</p>
+                                        <h3 class="font-bold text-gray-800">🚀 Instalar App Automáticamente</h3>
+                                        <p class="text-sm text-gray-600">Instalación nativa con un click</p>
                                     </div>
                                     <i class="fas fa-arrow-right text-indigo-500"></i>
                                 </div>
                             </div>
+                            ` : ''}
 
-                            <!-- Opción Acceso Directo -->
+                            <!-- Opción Manual - Siempre disponible -->
                             <div class="border border-blue-200 rounded-xl p-4 bg-gradient-to-r from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 transition-all cursor-pointer" onclick="window.pwaInstaller?.addToHomeScreen();">
                                 <div class="flex items-center space-x-3">
                                     <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
                                         <i class="fas fa-plus-circle text-white text-lg"></i>
                                     </div>
                                     <div class="flex-1">
-                                        <h3 class="font-bold text-gray-800">Agregar a Inicio</h3>
-                                        <p class="text-sm text-gray-600">Acceso directo en pantalla principal</p>
+                                        <h3 class="font-bold text-gray-800">📱 Agregar a Pantalla de Inicio</h3>
+                                        <p class="text-sm text-gray-600">Instrucciones paso a paso</p>
                                     </div>
                                     <i class="fas fa-arrow-right text-blue-500"></i>
                                 </div>
                             </div>
 
-                            <!-- Información -->
+                            <!-- Información del entorno -->
                             <div class="border border-emerald-200 rounded-xl p-4 bg-gradient-to-r from-emerald-50 to-teal-50">
                                 <div class="flex items-center space-x-3">
                                     <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center">
                                         <i class="fas fa-info-circle text-white text-lg"></i>
                                     </div>
                                     <div class="flex-1">
-                                        <h3 class="font-bold text-gray-800">¿Por qué descargar?</h3>
-                                        <p class="text-sm text-gray-600">Acceso más rápido y experiencia nativa</p>
+                                        <h3 class="font-bold text-gray-800">💡 Estado de la App</h3>
+                                        <p class="text-sm text-gray-600">
+                                            ${isHttps ? '✅ HTTPS - Funcionalidad completa' : '⚠️ HTTP - Funcionalidad limitada'}
+                                            <br>
+                                            ${isPWACapable ? '✅ PWA compatible' : '❌ PWA no soportado'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -467,41 +509,78 @@ class PWAInstallManager {
     }
 
     addToHomeScreen() {
+        console.log('📱 PWA: addToHomeScreen llamado');
+        console.log('📱 PWA: deferredPrompt disponible:', !!this.deferredPrompt);
+        
         if (this.deferredPrompt) {
+            console.log('📱 PWA: Usando prompt automático');
             this.installApp();
         } else {
-            // Mostrar instrucciones manuales
+            console.log('📱 PWA: Mostrando instrucciones manuales');
+            // Siempre mostrar instrucciones manuales si no hay prompt
             this.showManualInstructions();
         }
         this.closeDownloadModal();
     }
 
     showManualInstructions() {
+        console.log('📱 PWA: Mostrando instrucciones manuales');
         const instructions = document.createElement('div');
         instructions.innerHTML = `
             <div class="fixed inset-0 bg-black/50 z-[99999] flex items-center justify-center p-4">
                 <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
                     <div class="text-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-800 mb-2">📲 Instrucciones</h3>
-                        <p class="text-gray-600 text-sm">Para agregar a tu pantalla de inicio:</p>
+                        <div class="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-mobile-alt text-white text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">📲 Instalar Uni-Eats</h3>
+                        <p class="text-gray-600 text-sm">Para instalar como app en tu dispositivo:</p>
                     </div>
+                    
+                    <!-- Instrucciones para móvil -->
                     <div class="space-y-3 text-sm text-gray-700 mb-6">
-                        <div class="flex items-center space-x-2">
-                            <span class="w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-                            <span>Toca el menú del navegador (⋮ o ⋯)</span>
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <h4 class="font-bold text-blue-800 mb-2">📱 En móvil:</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                                    <span>Toca el menú del navegador (⋮ o ⋯)</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                                    <span>Busca "Agregar a pantalla de inicio"</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                                    <span>Confirma la instalación</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex items-center space-x-2">
-                            <span class="w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                            <span>Busca "Agregar a pantalla de inicio"</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <span class="w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
-                            <span>Confirma la instalación</span>
+                        
+                        <!-- Instrucciones para escritorio -->
+                        <div class="bg-green-50 p-3 rounded-lg">
+                            <h4 class="font-bold text-green-800 mb-2">💻 En escritorio:</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                                    <span>Busca el ícono de instalación en la barra de dirección</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                                    <span>O usa Ctrl+Shift+A (Chrome)</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <button onclick="this.parentElement.parentElement.remove()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium transition-colors">
-                        Entendido
-                    </button>
+                    
+                    <div class="flex space-x-3">
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" class="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium transition-colors">
+                            Entendido
+                        </button>
+                        <button onclick="window.open('https://developer.mozilla.org/es/docs/Web/Progressive_web_apps/Installing', '_blank')" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors">
+                            Más info
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -512,10 +591,14 @@ class PWAInstallManager {
 // Inicializar cuando el DOM esté listo
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+        console.log('📱 PWA: Inicializando PWA Installer desde DOMContentLoaded...');
         window.pwaInstaller = new PWAInstallManager();
+        console.log('📱 PWA: PWA Installer inicializado:', window.pwaInstaller);
     });
 } else {
+    console.log('📱 PWA: Inicializando PWA Installer directamente...');
     window.pwaInstaller = new PWAInstallManager();
+    console.log('📱 PWA: PWA Installer inicializado:', window.pwaInstaller);
 }
 
 // Exportar para uso global

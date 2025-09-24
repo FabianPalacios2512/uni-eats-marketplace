@@ -279,4 +279,58 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// 🔗 NAVEGACIÓN PARA PWA STANDALONE
+self.addEventListener('fetch', (event) => {
+  // Interceptar navegación y garantizar que siempre use el scope de la PWA
+  if (event.request.mode === 'navigate') {
+    console.log('🔗 SW: Navegación interceptada:', event.request.url);
+    
+    // Si es una navegación externa, redirigir al scope de la PWA
+    const url = new URL(event.request.url);
+    if (url.origin === self.location.origin) {
+      // Asegurar que siempre navegue dentro del scope de la PWA
+      event.respondWith(
+        fetch(event.request)
+          .then(response => {
+            // Agregar headers para PWA standalone
+            if (response.headers.get('content-type')?.includes('text/html')) {
+              const modifiedResponse = new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: {
+                  ...response.headers,
+                  'X-PWA-Mode': 'standalone'
+                }
+              });
+              return modifiedResponse;
+            }
+            return response;
+          })
+          .catch(() => {
+            // Si no hay conexión, servir página offline
+            return caches.match('/') || new Response('Uni-Eats - Sin conexión');
+          })
+      );
+    }
+  }
+});
+
 console.log('✅ SW: Uni-Eats PWA Service Worker v2.0 cargado');
+
+// 🎯 FUNCIONES ESPECÍFICAS PARA PWA STANDALONE
+// Detectar si la app se abrió en modo standalone
+self.addEventListener('activate', (event) => {
+  console.log('🚀 SW: Activando PWA standalone features');
+  
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then(clients => {
+      clients.forEach(client => {
+        // Notificar a la app que está en modo PWA
+        client.postMessage({
+          type: 'PWA_ACTIVATED',
+          mode: 'standalone'
+        });
+      });
+    })
+  );
+});

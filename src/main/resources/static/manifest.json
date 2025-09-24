@@ -1,87 +1,37 @@
 {
-  "name": "Uni-Eats - Campus Food Marketplace",
+  "name": "Uni-Eats",
   "short_name": "Uni-Eats",
-  "description": "Plataforma de pedidos de comida para estudiantes universitarios. Escanea QR, ordena y recibe notificaciones cuando tu comida esté lista.",
-  "start_url": "/",
+  "description": "Plataforma de pedidos de comida universitaria",
+  "start_url": "/estudiante-dashboard",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "theme_color": "#4f46e5",
-  "background_color": "#f8fafc",
-  "lang": "es",
+  "background_color": "#ffffff",
   "scope": "/",
   "icons": [
     {
-      "src": "/img/icons/icon-192x192.svg",
+      "src": "/img/icon.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/img/icons/icon-512x512.svg",
+      "src": "/img/icon.svg",
+      "sizes": "512x512", 
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/img/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/img/icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/img/screenshots/mobile-home.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Pantalla principal móvil"
-    },
-    {
-      "src": "/img/screenshots/desktop-dashboard.png",
-      "sizes": "1920x1080",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Dashboard de vendedor"
-    }
-  ],
-  "categories": ["food", "education", "shopping"],
-  "shortcuts": [
-    {
-      "name": "Panel Vendedor",
-      "short_name": "Vendedor",
-      "description": "Acceso rápido al panel de vendedor",
-      "url": "/dashboard/vendedor",
-      "icons": [
-        {
-          "src": "/img/icons/icon-192x192.svg",
-          "sizes": "192x192",
-          "type": "image/svg+xml"
-        }
-      ]
-    },
-    {
-      "name": "Explorar Tiendas",
-      "short_name": "Tiendas",
-      "description": "Ver todas las tiendas disponibles",
-      "url": "/dashboard/comprador",
-      "icons": [
-        {
-          "src": "/img/icons/icon-192x192.svg",
-          "sizes": "192x192",
-          "type": "image/svg+xml"
-        }
-      ]
-    }
-  ],
-  "share_target": {
-    "action": "/share",
-    "method": "POST",
-    "enctype": "multipart/form-data",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url"
-    }
-  },
-  "protocol_handlers": [
-    {
-      "protocol": "web+unieats",
-      "url": "/handle?type=%s"
+      "purpose": "maskable"
     }
   ]
 }

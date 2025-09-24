@@ -12,6 +12,24 @@
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
+    
+    <!-- iOS PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Uni-Eats">
+    <link rel="apple-touch-icon" href="/img/icons/logo.png">
+    
+    <!-- Android PWA Support -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Uni-Eats">
+    
+    <!-- Windows PWA Support -->
+    <meta name="msapplication-TileColor" content="#4f46e5">
+    <meta name="msapplication-TileImage" content="/img/icons/logo.png">
+    
+    <!-- Theme and display -->
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#312e81" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -85,6 +103,76 @@
                 min-height: calc(100vh - 100px - env(safe-area-inset-bottom, 0px)) !important;
             }
         }
+
+        /* 📱 PWA STANDALONE STYLES */
+        .pwa-standalone {
+            /* Optimizar para modo PWA standalone */
+            isolation: isolate;
+        }
+        
+        .pwa-standalone body {
+            /* Optimizar para pantalla completa */
+            overflow-x: hidden;
+            user-select: none; /* Prevenir selección accidental */
+            -webkit-user-select: none;
+            -webkit-touch-callout: none; /* Prevenir menú contextual en iOS */
+        }
+        
+        .pwa-standalone #app-header {
+            /* Header más prominente en PWA */
+            background: rgba(255, 255, 255, 0.98) !important;
+            backdrop-filter: blur(20px) !important;
+        }
+        
+        .pwa-standalone #app-nav {
+            /* Navegación más nativa en PWA */
+            background: rgba(255, 255, 255, 0.98) !important;
+            backdrop-filter: blur(20px) !important;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        /* Transiciones suaves para PWA */
+        .pwa-standalone * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        @media (display-mode: standalone) {
+            /* Estilos automáticos cuando está en modo standalone */
+            body {
+                background-color: #ffffff !important;
+            }
+            
+            #app-header {
+                padding-top: env(safe-area-inset-top, 20px) !important;
+            }
+            
+            /* Ocultar elementos del navegador si aparecen */
+            body::before {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: env(safe-area-inset-top, 0px);
+                background: #4f46e5;
+                z-index: 9999;
+            }
+        }
+
+        /* Forzar modo app si viene de PWA */
+        body[data-pwa-mode="standalone"] {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+        }
+        
+        body[data-pwa-mode="standalone"] #app-header {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 1000 !important;
+        }
     </style>
 </head>
 <body class="bg-slate-100">
@@ -115,7 +203,7 @@
             </div>
             <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-purple-600 transition-colors">Pedidos</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" id="download-app-nav" onclick="window.pwaInstaller?.showDownloadOptions()">
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" id="download-app-nav" onclick="console.log('Botón clickeado'); if(window.pwaInstaller) { console.log('PWA Installer disponible'); window.pwaInstaller.showDownloadOptions(); } else { console.log('PWA Installer NO disponible'); alert('El sistema PWA no está disponible. Refresca la página.'); }">
             <div class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-all group-hover:from-indigo-600 group-hover:to-purple-600">
                 <i class="fas fa-download text-white text-xs"></i>
             </div>
@@ -134,6 +222,7 @@
     <script src="/js/connection-manager.js"></script>
     <script src="/js/image-optimizer.js"></script>
     <script src="/js/pwa-installer.js"></script>
+    <script src="/js/pwa-standalone.js"></script>
     <script src="/js/push-notifications.js"></script>
     <script src="/js/pwa-init.js"></script>
     

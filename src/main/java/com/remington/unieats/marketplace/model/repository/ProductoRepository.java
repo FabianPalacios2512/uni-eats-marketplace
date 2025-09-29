@@ -15,6 +15,8 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
 
     List<Producto> findByTiendaAndDisponible(Tienda tienda, boolean disponible);
 
+    List<Producto> findByTienda_IdAndDisponible(Integer tiendaId, boolean disponible);
+
     // MÉTODO AÑADIDO PARA SOLUCIONAR EL ERROR
     List<Producto> findByTienda_EstadoAndDisponible(EstadoTienda estado, boolean disponible);
 }

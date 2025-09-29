@@ -14,5 +14,6 @@ public interface MarketplaceService {
     
     // MÉTODO AÑADIDO
     List<ProductoPublicoDTO> getProductosPopulares();
+    List<ProductoPublicoDTO> getProductosDeTienda(Integer tiendaId);
     Optional<ProductoDetalleDTO> getDetalleProducto(Integer id);
 }

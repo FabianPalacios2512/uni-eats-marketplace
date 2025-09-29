@@ -66,7 +66,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return response.text(); 
         },
         getTiendas: () => Api._fetch('/api/marketplace/tiendas'),
+        getTienda: (id) => Api._fetch(`/api/marketplace/tiendas/${id}`),
         getProductos: () => Api._fetch('/api/marketplace/productos'),
+        getProductosDeTienda: (tiendaId) => Api._fetch(`/api/marketplace/productos/tienda/${tiendaId}`),
         getProductoDetalle: (id) => Api._fetch(`/api/marketplace/productos/${id}`),
         getMisPedidos: () => Api._fetch('/api/pedidos/mis-pedidos'),
         crearPedido: (dto) => Api._fetch('/api/pedidos/crear', { method: 'POST', body: JSON.stringify(dto) }),
@@ -874,6 +876,13 @@ document.addEventListener("DOMContentLoaded", () => {
                         const tiendasList = await Api.getTiendas();
                         Container.innerHTML = this.getListaTiendasHTML(tiendasList);
                         break;
+                    case 'productosTienda':
+                        const tienda = await Api.getTienda(params.tiendaId);
+                        const productosDeTrienda = await Api.getProductosDeTienda(params.tiendaId);
+                        State.tiendaActual = tienda;
+                        Header.innerHTML = this.getHeaderHTML('productosTienda', tienda);
+                        Container.innerHTML = this.getProductosTiendaHTML(productosDeTrienda, tienda);
+                        break;
                     case 'perfil':
                         Header.innerHTML = this.getHeaderHTML('perfil');
                         Container.innerHTML = this.getPerfilHTML();
@@ -938,17 +947,16 @@ document.addEventListener("DOMContentLoaded", () => {
             
             switch (view) {
                 case 'inicio': return `
-                    <div class="relative bg-indigo-600 text-white overflow-hidden">
-                        <!-- Elementos decorativos flotantes -->
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full opacity-20 -translate-y-16 translate-x-16"></div>
-                        <div class="absolute bottom-0 left-0 w-24 h-24 bg-orange-400 rounded-full opacity-30 translate-y-12 -translate-x-12"></div>
-                        <div class="absolute top-1/2 right-1/4 w-16 h-16 bg-purple-400 rounded-full opacity-15"></div>
+                    <div class="relative bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white overflow-hidden">
+                        <!-- Elementos decorativos más sutiles -->
+                        <div class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-12 translate-x-12"></div>
+                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-white/10 rounded-full translate-y-10 -translate-x-10"></div>
                         
-                        <div class="relative z-10 px-4 pt-3 pb-3">
-                            <div class="flex items-center justify-between mb-3">
+                        <div class="relative z-10 px-3 py-3">
+                            <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-3">
                                     <div class="relative">
-                                        <div class="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-xl transform rotate-3 hover:rotate-0 transition-transform duration-300">
+                                        <div class="w-9 h-9 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-lg">
                                             <i class="fas fa-utensils text-white text-sm"></i>
                                         </div>
                                         <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
@@ -959,32 +967,66 @@ document.addEventListener("DOMContentLoaded", () => {
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <button class="relative w-9 h-9 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="perfil">
+                                    <button class="relative w-8 h-8 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="perfil">
                                         <i class="fas fa-user text-white text-xs group-hover:scale-110 transition-transform"></i>
-                                        <div class="absolute inset-0 bg-white/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                     </button>
                                     ${State.carrito.length > 0 ? `
-                                        <button class="relative w-9 h-9 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
+                                        <button class="relative w-8 h-8 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
                                             <i class="fas fa-shopping-cart text-white text-xs group-hover:scale-110 transition-transform"></i>
-                                            <span class="absolute -top-2 -right-2 w-5 h-5 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-bounce border-2 border-white">${State.carrito.length}</span>
-                                            <div class="absolute inset-0 bg-white/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                            <span class="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-bounce border border-white">${State.carrito.length}</span>
                                         </button>
                                     ` : ''}
                                 </div>
                             </div>
                             
-                            <!-- Barra de búsqueda compacta -->
-                            <div class="relative">
-                                <div class="relative bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-white/30">
+                            <!-- Barra de búsqueda más compacta -->
+                            <div class="relative mt-3">
+                                <div class="relative bg-white/95 backdrop-blur-xl rounded-xl shadow-lg border border-white/30">
                                     <div class="flex items-center px-1">
                                         <div class="flex-1 relative">
-                                            <input type="search" placeholder="Buscar comida..." class="w-full bg-transparent placeholder-slate-400 text-slate-800 border-0 rounded-2xl py-2 pl-4 pr-3 text-sm focus:outline-none">
+                                            <input type="search" placeholder="Buscar comida..." class="w-full bg-transparent placeholder-slate-400 text-slate-800 border-0 rounded-xl py-2 pl-4 pr-3 text-sm focus:outline-none">
                                             <div class="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping"></div>
                                         </div>
-                                        <button class="w-9 h-9 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group">
+                                        <button class="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300 group">
                                             <i class="fas fa-search text-white text-xs group-hover:rotate-12 transition-transform"></i>
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                case 'productosTienda': return `
+                    <div class="relative bg-gradient-to-br from-purple-600 to-pink-600 text-white overflow-hidden">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+                        <div class="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-12 -translate-x-12"></div>
+                        
+                        <div class="relative z-10 px-3 py-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <button class="w-8 h-8 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/30 transition-all duration-300" data-action="navigate" data-view="tiendas">
+                                        <i class="fas fa-arrow-left text-white text-sm"></i>
+                                    </button>
+                                    <div class="flex items-center gap-3">
+                                        <div class="relative">
+                                            <div class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-xl">
+                                                <i class="fas fa-utensils text-white text-sm"></i>
+                                            </div>
+                                            <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                                        </div>
+                                        <div>
+                                            <h1 class="text-lg font-bold bg-gradient-to-r from-white to-purple-100 bg-clip-text text-transparent">${data?.nombre || 'Tienda'}</h1>
+                                            <p class="text-purple-200 text-xs">🍽️ Menú disponible</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    ${State.carrito.length > 0 ? `
+                                        <button class="relative w-8 h-8 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
+                                            <i class="fas fa-shopping-cart text-white text-xs group-hover:scale-110 transition-transform"></i>
+                                            <span class="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-bounce border border-white">${State.carrito.length}</span>
+                                        </button>
+                                    ` : ''}
                                 </div>
                             </div>
                         </div>
@@ -1143,48 +1185,150 @@ document.addEventListener("DOMContentLoaded", () => {
 
         getDetalleProductoHTML(producto) {
             let opcionesHtml = producto.categoriasDeOpciones.map(cat => `
-                <div class="mt-6 mb-4"><h3 class="font-bold text-lg mb-2">${cat.nombre}</h3><div class="space-y-2">
-                    ${cat.opciones.map(op => `
-                        <label class="flex items-center bg-white p-3 rounded-lg shadow-sm">
-                            <input type="checkbox" class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500" name="${cat.id}" value="${op.id}" data-precio="${op.precioAdicional}" data-nombre="${op.nombre}">
-                            <span class="ml-3 text-slate-700">${op.nombre}</span><span class="ml-auto font-semibold text-slate-500">${this.formatPrice(op.precioAdicional)}</span>
-                        </label>`).join('')}
-                </div></div>`).join('');
-
-            return `<div class="bg-white rounded-t-2xl shadow-lg -m-4">
-                        <img src="${producto.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cHJvZHVjdG8ubm9tYnJlfTwvdGV4dD48L3N2Zz4='" class="w-full h-48 object-cover rounded-t-2xl">
-                        <div class="p-4"><h2 class="font-bold text-2xl">${producto.nombre}</h2><p class="text-slate-600 mt-1">${producto.descripcion}</p></div>
+                <div class="mb-4">
+                    <h3 class="font-bold text-lg mb-3 text-gray-800">${cat.nombre}</h3>
+                    <div class="space-y-2">
+                        ${cat.opciones.map(op => `
+                            <label class="flex items-center bg-gray-50 p-3 rounded-xl border border-gray-100 hover:bg-purple-50 hover:border-purple-200 transition-all cursor-pointer">
+                                <input type="checkbox" class="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 border-gray-300" name="${cat.id}" value="${op.id}" data-precio="${op.precioAdicional}" data-nombre="${op.nombre}">
+                                <span class="ml-3 text-gray-700 flex-1">${op.nombre}</span>
+                                <span class="font-semibold text-purple-600 text-sm">${this.formatPrice(op.precioAdicional)}</span>
+                            </label>
+                        `).join('')}
                     </div>
-                    <div class="p-4">${opcionesHtml}</div>
-                    <div class="sticky bottom-0 bg-white/80 backdrop-blur-md p-3 shadow-inner-top -mx-4 -mb-4 rounded-t-2xl">
-                        <div class="flex items-center justify-between mb-3">
-                             <div class="flex items-center gap-3"><button class="qty-btn" data-action="update-qty" data-op="-1">-</button><span id="item-qty" class="font-bold text-xl w-5 text-center">1</span><button class="qty-btn" data-action="update-qty" data-op="1">+</button></div>
-                            <span id="total-producto" class="font-bold text-xl text-indigo-600">${this.formatPrice(producto.precio, false)}</span>
-                        </div>
-                        <button class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl" data-action="add-custom-to-cart">Añadir al Pedido</button>
-                    </div>`;
+                </div>
+            `).join('');
+
+            return `
+            <div class="bg-white rounded-t-2xl shadow-lg -m-4">
+                <div class="relative">
+                    <img src="${producto.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cHJvZHVjdG8ubm9tYnJlfTwvdGV4dD48L3N2Zz4='" class="w-full h-48 object-cover rounded-t-2xl">
+                    <!-- Badge de precio destacado -->
+                    <div class="absolute top-4 right-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-3 py-2 rounded-xl font-bold shadow-lg">
+                        ${this.formatPrice(producto.precio, false)}
+                    </div>
+                    <!-- Badge del restaurante -->
+                    <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg">
+                        <p class="text-sm font-medium text-gray-800">${producto.tienda.nombre}</p>
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h2 class="font-bold text-2xl text-gray-800 mb-2">${producto.nombre}</h2>
+                    <p class="text-gray-600">${producto.descripcion}</p>
+                </div>
+            </div>
+
+            <!-- Opciones de personalización -->
+            ${opcionesHtml ? `<div class="p-4">${opcionesHtml}</div>` : ''}
+
+            <!-- Footer fijo con controles -->
+            <div class="sticky bottom-0 bg-white/95 backdrop-blur-md p-4 shadow-lg border-t border-gray-100 -mx-4 -mb-4 rounded-t-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <!-- Controles de cantidad más compactos -->
+                    <div class="flex items-center gap-3">
+                        <button class="w-8 h-8 bg-gray-100 hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors" data-action="update-qty" data-op="-1">
+                            <i class="fas fa-minus text-gray-600 text-xs"></i>
+                        </button>
+                        <span id="item-qty" class="font-bold text-xl w-8 text-center text-purple-600">1</span>
+                        <button class="w-8 h-8 bg-gray-100 hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors" data-action="update-qty" data-op="1">
+                            <i class="fas fa-plus text-gray-600 text-xs"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Total más prominente -->
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Total</p>
+                        <span id="total-producto" class="font-bold text-2xl text-purple-600">${this.formatPrice(producto.precio, false)}</span>
+                    </div>
+                </div>
+                
+                <!-- Botón de acción más atractivo -->
+                <button class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-2" data-action="add-custom-to-cart">
+                    <i class="fas fa-plus text-sm"></i>
+                    <span>Añadir al Pedido</span>
+                </button>
+            </div>`;
         },
 
         getCarritoHTML() {
-            if (State.carrito.length === 0) return `<div class="text-center p-10"><i class="fas fa-shopping-cart text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">Tu carrito está vacío.</p><button class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg" data-action="navigate" data-view="inicio">Volver al inicio</button></div>`;
+            if (State.carrito.length === 0) {
+                return `
+                <div class="text-center p-12">
+                    <div class="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-shopping-cart text-3xl text-amber-500"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-600 mb-2">Tu carrito está vacío</h3>
+                    <p class="text-gray-500 mb-6">¡Explora nuestros deliciosos productos!</p>
+                    <button class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg transition-all" data-action="navigate" data-view="inicio">
+                        Explorar productos
+                    </button>
+                </div>`;
+            }
             
-            // El precioFinal ya incluye la cantidad, no multiplicar de nuevo
             const total = State.carrito.reduce((sum, item) => sum + item.precioFinal, 0);
             const itemsHtml = State.carrito.map((item, index) => `
-                <div class="flex items-start gap-4 py-4 border-b">
-                    <div class="flex-grow">
-                        <p class="font-bold">${item.cantidad}x ${item.nombre}</p>
-                        ${item.opciones.map(op => `<p class="text-xs text-slate-500">+ ${op.nombre}</p>`).join('')}
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-3">
+                    <div class="flex items-start gap-3">
+                        <div class="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-utensils text-white text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <h3 class="font-bold text-gray-800 text-sm">${item.cantidad}x ${item.nombre}</h3>
+                                    ${item.opciones.length > 0 ? `
+                                    <div class="mt-1">
+                                        ${item.opciones.map(op => `<p class="text-xs text-gray-500 flex items-center gap-1"><i class="fas fa-plus text-xs"></i>${op.nombre}</p>`).join('')}
+                                    </div>
+                                    ` : ''}
+                                </div>
+                                <div class="text-right ml-3">
+                                    <p class="font-bold text-purple-600">${this.formatPrice(item.precioFinal, false)}</p>
+                                    <button class="text-red-400 hover:text-red-600 transition-colors mt-1" data-action="remove-from-cart" data-index="${index}">
+                                        <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <p class="font-semibold w-24 text-right">${this.formatPrice(item.precioFinal, false)}</p>
-                    <button class="text-red-500 hover:text-red-700" data-action="remove-from-cart" data-index="${index}"><i class="fas fa-trash"></i></button>
-                </div>`).join('');
+                </div>
+            `).join('');
 
-            return `<div class="bg-white rounded-lg shadow-sm p-4">${itemsHtml}
-                        <div class="flex justify-between items-center text-xl font-bold mt-4"><span>Total:</span><span>${this.formatPrice(total, false)}</span></div>
+            return `
+            <div class="px-3 py-2">
+                <!-- Header del carrito -->
+                <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 mb-4 border border-amber-100">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center">
+                            <i class="fas fa-store text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-gray-800">${State.tiendaActual.nombre}</h2>
+                            <p class="text-sm text-gray-600">${State.carrito.length} producto${State.carrito.length !== 1 ? 's' : ''} en tu pedido</p>
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-500 text-center my-4">Estás pidiendo de: <strong>${State.tiendaActual.nombre}</strong></p>
-                    <button class="w-full mt-2 bg-green-500 text-white font-bold py-4 rounded-xl text-lg" data-action="checkout">Confirmar Pedido</button>`;
+                </div>
+
+                <!-- Lista de productos -->
+                ${itemsHtml}
+
+                <!-- Resumen total -->
+                <div class="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl p-4 mt-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <p class="text-sm opacity-90">Total a pagar</p>
+                            <p class="text-2xl font-bold">${this.formatPrice(total, false)}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                            <i class="fas fa-receipt text-white text-lg"></i>
+                        </div>
+                    </div>
+                    <button class="w-full bg-white/20 backdrop-blur-md text-white font-bold py-3 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center justify-center gap-2" data-action="checkout">
+                        <i class="fas fa-check text-sm"></i>
+                        <span>Confirmar Pedido</span>
+                    </button>
+                </div>
+            </div>`;
         },
 
         getPerfilHTML() {
@@ -1371,12 +1515,15 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             const totalItems = State.carrito.reduce((sum, item) => sum + item.cantidad, 0);
             if (boton) {
-                boton.querySelector('span').textContent = totalItems;
+                boton.querySelector('.cart-count').textContent = totalItems;
             } else {
                 boton = document.createElement('div');
                 boton.id = 'floating-cart-btn';
-                boton.className = 'fixed bottom-24 right-5 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center h-16 w-16 cursor-pointer z-50 animate-pop-in';
-                boton.innerHTML = `<i class="fas fa-shopping-bag text-2xl"></i><span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">${totalItems}</span>`;
+                boton.className = 'fixed bottom-20 right-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl shadow-lg flex items-center justify-center h-12 w-12 cursor-pointer z-50 transform transition-all duration-300 hover:scale-110 hover:shadow-xl';
+                boton.innerHTML = `
+                    <i class="fas fa-shopping-cart text-lg"></i>
+                    <span class="cart-count absolute -top-2 -right-2 bg-orange-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-bounce border-2 border-white">${totalItems}</span>
+                `;
                 boton.dataset.action = 'navigate';
                 boton.dataset.view = 'carrito';
                 document.body.appendChild(boton);
@@ -1445,48 +1592,158 @@ getCategoryBarHTML() {
         </div>
     </div>`;
 },        /**
-         * Grid compacto de productos
+         * Grid compacto de productos (mejorado)
          */
         getSmallProductGridHTML(productos) {
-            if (!productos || productos.length === 0) return `<div class="text-center p-10"><i class="fas fa-box-open text-5xl text-slate-300"></i><p class="mt-4 text-slate-500">No hay productos.</p></div>`;
+            if (!productos || productos.length === 0) {
+                return `
+                <div class="text-center p-10">
+                    <div class="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-box-open text-2xl text-gray-400"></i>
+                    </div>
+                    <p class="text-gray-500">No hay productos disponibles</p>
+                </div>`;
+            }
+            
             return `
-            <div class="px-4 py-3">
+            <div class="px-3 py-3">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-bold text-gray-800">🍽️ Para ti</h2>
-                    <div class="flex space-x-2">
-                        <button class="w-8 h-8 bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl flex items-center justify-center">
+                    <h2 class="text-lg font-bold text-gray-800">🍽️ Recomendados</h2>
+                    <div class="flex space-x-1">
+                        <button class="w-7 h-7 bg-gray-100 hover:bg-purple-100 rounded-lg flex items-center justify-center transition-colors">
                             <i class="fas fa-th text-gray-600 text-xs"></i>
                         </button>
-                        <button class="w-8 h-8 bg-gradient-to-r from-orange-100 to-red-100 rounded-xl flex items-center justify-center">
-                            <i class="fas fa-list text-orange-600 text-xs"></i>
+                        <button class="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-list text-purple-600 text-xs"></i>
                         </button>
                     </div>
                 </div>
-                <div class="grid grid-cols-3 gap-3">
-                    ${productos.map(p => `
-                        <div class="group cursor-pointer" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
-                            <div class="bg-white rounded-2xl overflow-hidden shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:-translate-y-2 border border-gray-100">
+                
+                <!-- Grid optimizado más compacto -->
+                <div class="grid grid-cols-2 gap-3">
+                    ${productos.slice(0, 6).map(p => `
+                        <div class="group cursor-pointer transform transition-all duration-300 hover:scale-[1.02]" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
+                            <div class="bg-white rounded-xl overflow-hidden shadow-md group-hover:shadow-lg border border-gray-100">
                                 <div class="relative">
-                                    <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjgwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiNlMmU4ZjAiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTdhM2I0Ij7wn42dPC90ZXh0Pjwvc3ZnPg=='" class="w-full h-20 object-cover">
-                                    <div class="absolute top-2 right-2 w-6 h-6 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg">
-                                        <i class="fas fa-heart text-gray-400 text-xs hover:text-red-500 transition-colors"></i>
+                                    <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cC5ub21icmV9PC90ZXh0Pjwvc3ZnPg=='" class="w-full h-24 object-cover">
+                                    <!-- Badge de precio más prominente -->
+                                    <div class="absolute top-2 left-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg">
+                                        ${this.formatPrice(p.precio, false)}
                                     </div>
-                                    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent h-8"></div>
+                                    <!-- Botón de favorito más sutil -->
+                                    <div class="absolute top-2 right-2 w-6 h-6 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
+                                        <i class="fas fa-heart text-gray-400 text-xs hover:text-red-500 transition-colors cursor-pointer"></i>
+                                    </div>
                                 </div>
                                 <div class="p-3">
-                                    <h3 class="font-bold text-xs text-gray-800 truncate leading-tight mb-1">${p.nombre}</h3>
-                                    <p class="text-xs text-gray-500 truncate mb-2">${p.tienda.nombre}</p>
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-black text-xs bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">${this.formatPrice(p.precio, false)}</span>
-                                        <button class="w-6 h-6 bg-gradient-to-r from-orange-400 to-red-500 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                            <i class="fas fa-plus text-white text-xs"></i>
-                                        </button>
-                                    </div>
+                                    <h3 class="font-bold text-sm text-gray-800 leading-tight mb-1 line-clamp-1">${p.nombre}</h3>
+                                    <p class="text-xs text-gray-500 mb-2 line-clamp-1">${p.tienda.nombre}</p>
+                                    
+                                    <!-- Botón de acción más pequeño y moderno -->
+                                    <button class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-3 rounded-lg text-xs font-medium shadow-sm group-hover:shadow-md transition-all duration-300 flex items-center justify-center gap-1">
+                                        <i class="fas fa-plus text-xs"></i>
+                                        <span>Personalizar</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     `).join('')}
                 </div>
+                
+                <!-- Ver más productos -->
+                ${productos.length > 6 ? `
+                <div class="mt-4 text-center">
+                    <button class="bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-700 px-4 py-2 rounded-xl text-sm font-medium transition-all" data-action="navigate" data-view="tiendas">
+                        Ver todos los productos
+                    </button>
+                </div>
+                ` : ''}
+            </div>`;
+        },
+
+        /**
+         * Grid de productos de una tienda específica (nuevo diseño moderno)
+         */
+        getProductosTiendaHTML(productos, tienda) {
+            if (!productos || productos.length === 0) {
+                return `
+                <div class="text-center p-12">
+                    <div class="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-utensils text-3xl text-gray-400"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-600 mb-2">No hay productos</h3>
+                    <p class="text-gray-500 mb-4">Esta tienda no tiene productos disponibles.</p>
+                    <button class="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-xl font-medium hover:shadow-lg transition-all" data-action="navigate" data-view="tiendas">
+                        Ver otras tiendas
+                    </button>
+                </div>`;
+            }
+
+            return `
+            <div class="px-3 py-2">
+                <!-- Header de info de la tienda -->
+                <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 mb-4 border border-purple-100">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                            <i class="fas fa-store text-white text-lg"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h2 class="font-bold text-gray-800">${tienda.nombre}</h2>
+                            <p class="text-sm text-gray-600">${productos.length} productos disponibles</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-check text-green-600 text-sm"></i>
+                            </div>
+                            <p class="text-xs text-green-600 font-medium mt-1">Abierto</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grid de productos mejorado -->
+                <div class="grid grid-cols-2 gap-3">
+                    ${productos.map(p => `
+                        <div class="group cursor-pointer transform transition-all duration-300 hover:scale-[1.02]" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
+                            <div class="bg-white rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl border border-gray-100">
+                                <div class="relative">
+                                    <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cC5ub21icmV9PC90ZXh0Pjwvc3ZnPg=='" class="w-full h-24 object-cover">
+                                    <div class="absolute top-2 right-2 w-6 h-6 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
+                                        <i class="fas fa-heart text-gray-400 text-xs hover:text-red-500 transition-colors cursor-pointer"></i>
+                                    </div>
+                                    <!-- Badge de precio destacado -->
+                                    <div class="absolute bottom-2 left-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg">
+                                        ${this.formatPrice(p.precio, false)}
+                                    </div>
+                                </div>
+                                <div class="p-3">
+                                    <h3 class="font-bold text-sm text-gray-800 leading-tight mb-1 line-clamp-2">${p.nombre}</h3>
+                                    <p class="text-xs text-gray-500 mb-3 line-clamp-2">${p.descripcion || 'Delicioso producto disponible'}</p>
+                                    
+                                    <!-- Botón de acción más pequeño -->
+                                    <button class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-3 rounded-xl text-xs font-medium shadow-md group-hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2">
+                                        <i class="fas fa-plus text-xs"></i>
+                                        <span>Personalizar</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <!-- Footer con info adicional -->
+                ${State.carrito.length > 0 ? `
+                <div class="mt-6 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium">Tu pedido actual</p>
+                            <p class="text-xs opacity-90">${State.carrito.length} producto${State.carrito.length !== 1 ? 's' : ''} seleccionado${State.carrito.length !== 1 ? 's' : ''}</p>
+                        </div>
+                        <button class="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/30 transition-all" data-action="navigate" data-view="carrito">
+                            Ver carrito
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
             </div>`;
         },
     };
@@ -1592,7 +1849,7 @@ getCategoryBarHTML() {
             State.tiendaActual = { id: productoBase.tienda.id, nombre: productoBase.tienda.nombre };
             Toast.show(`${cantidad}x "${productoBase.nombre}" añadido.`, 'success');
             Views.renderFloatingCartButton();
-            Views.render('tiendas');
+            Views.render('productosTienda', { tiendaId: productoBase.tienda.id });
         },
 
         removerDelCarrito(index) {

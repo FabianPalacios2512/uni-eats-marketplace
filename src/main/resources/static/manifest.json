@@ -1,0 +1,19 @@
+{
+  "name": "Uni-Eats Marketplace",
+  "short_name": "UniEats",
+  "description": "Plataforma universitaria de comida",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/img/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

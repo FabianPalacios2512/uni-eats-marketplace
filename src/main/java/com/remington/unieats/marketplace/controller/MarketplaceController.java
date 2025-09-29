@@ -41,6 +41,12 @@ public class MarketplaceController {
         return ResponseEntity.ok(productos);
     }
 
+    @GetMapping("/productos/tienda/{tiendaId}")
+    public ResponseEntity<List<ProductoPublicoDTO>> listarProductosDeTienda(@PathVariable Integer tiendaId) {
+        List<ProductoPublicoDTO> productos = marketplaceService.getProductosDeTienda(tiendaId);
+        return ResponseEntity.ok(productos);
+    }
+
       @GetMapping("/productos/{id}")
     public ResponseEntity<ProductoDetalleDTO> obtenerDetalleProducto(@PathVariable Integer id) {
         return marketplaceService.getDetalleProducto(id)

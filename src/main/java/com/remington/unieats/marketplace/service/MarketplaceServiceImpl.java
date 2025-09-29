@@ -110,6 +110,15 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         return Optional.of(dto);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductoPublicoDTO> getProductosDeTienda(Integer tiendaId) {
+        return productoRepository.findByTienda_IdAndDisponible(tiendaId, true)
+                .stream()
+                .map(this::convertirAProductoPublicoDTO)
+                .collect(Collectors.toList());
+    }
+
     // --- Métodos privados de ayuda (Helpers) ---
 
     private TiendaPublicaDTO convertirATiendaPublicaDTO(Tienda tienda) {

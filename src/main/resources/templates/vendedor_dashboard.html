@@ -6,24 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="_csrf" th:content="${_csrf.token}"/>
     <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
-    <link rel="manifest" href="/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#667eea">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Uni-Eats Vendedor">
-    
-    <!-- PWA Icons -->
-    <link rel="apple-touch-icon" href="/img/icons/icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/img/icons/icon-32x32.png">
-    
-    <!-- PWA Styles -->
-    <link rel="stylesheet" href="/css/pwa-styles.css">
     
     <style>
         body { font-family: 'Poppins', sans-serif; }
@@ -142,16 +128,8 @@
         </div>
     </div>
 
-    <!-- Script principal del vendedor - CARGA DIRECTA SIN DEPENDENCIAS -->
+    <!-- Script principal del vendedor -->
     <script src="/js/vendedor.js"></script>
-    
-    <!-- PWA Scripts - cargan después -->
-    <script src="/js/pwa-config.js" async></script>
-    <script src="/js/connection-manager.js" async></script>
-    <script src="/js/image-optimizer.js" async></script>
-    <script src="/js/pwa-installer.js" async></script>
-    <script src="/js/push-notifications.js" async></script>
-    <script src="/js/pwa-init.js" async></script>
     
     <!-- Utilidades opcionales - se cargan después, no bloquean -->
     <script src="/js/utils/logger.js" async></script>
@@ -161,7 +139,7 @@
     <script src="/js/utils/init.js" async></script>
 
     <script>
-        // PWA Status Indicator
+        // Status Indicator
         document.addEventListener('DOMContentLoaded', function() {
             // Agregar indicador de conexión al header
             const header = document.querySelector('.bg-white.shadow-lg');
@@ -173,36 +151,6 @@
                 connectionStatus.className = 'absolute top-2 right-16 z-50';
                 header.style.position = 'relative';
                 header.appendChild(connectionStatus);
-            }
-
-            // Escuchar cambios de conexión
-            window.addEventListener('connectionchange', function(e) {
-                const { isOnline } = e.detail;
-                console.log('🌐 Estado de conexión:', isOnline ? 'Online' : 'Offline');
-                
-                // Actualizar UI según estado
-                if (isOnline) {
-                    // Refresh data when back online
-                    if (typeof loadPedidos === 'function') {
-                        loadPedidos();
-                    }
-                }
-            });
-
-            // Configurar notificaciones push para vendedores
-            if (window.PushManager) {
-                window.PushManager.setVapidPublicKey('YOUR_VAPID_PUBLIC_KEY_HERE');
-                
-                // Auto-subscribe if not subscribed
-                setTimeout(() => {
-                    window.PushManager.subscribe({
-                        newOrders: true,
-                        orderUpdates: true,
-                        promotions: false
-                    }).catch(err => {
-                        console.log('Usuario no aceptó notificaciones:', err.message);
-                    });
-                }, 3000);
             }
         });
     </script>

@@ -24,7 +24,7 @@ public class VendedorServiceImpl implements VendedorService {
     @Autowired private PedidoRepository pedidoRepository;
     @Autowired private ProductoRepository productoRepository;
     @Autowired private CategoriaOpcionRepository categoriaOpcionRepository;
-    @Autowired private S3ImageService s3ImageService;
+    @Autowired private LocalImageService localImageService;
 
     @Override
     public Optional<Tienda> findTiendaByVendedor(Usuario vendedor) {
@@ -44,8 +44,12 @@ public class VendedorServiceImpl implements VendedorService {
         nuevaTienda.setVendedor(vendedor);
 
         if (logoFile != null && !logoFile.isEmpty()) {
-            String logoUrl = s3ImageService.uploadStoreImage(logoFile);
-            nuevaTienda.setLogoUrl(logoUrl);
+            try {
+                String logoUrl = localImageService.uploadImage(logoFile, "logos");
+                nuevaTienda.setLogoUrl(logoUrl);
+            } catch (Exception e) {
+                throw new RuntimeException("Error al subir logo: " + e.getMessage(), e);
+            }
         }
         
         Tienda tiendaGuardada = tiendaRepository.save(nuevaTienda);
@@ -67,8 +71,16 @@ public class VendedorServiceImpl implements VendedorService {
         tienda.setDescripcion(updateDTO.getDescripcion());
 
         if (logoFile != null && !logoFile.isEmpty()) {
-            String logoUrl = s3ImageService.uploadStoreImage(logoFile);
-            tienda.setLogoUrl(logoUrl);
+            try {
+                // Eliminar logo anterior si existe
+                if (tienda.getLogoUrl() != null && !tienda.getLogoUrl().isEmpty()) {
+                    localImageService.deleteImage(tienda.getLogoUrl());
+                }
+                String logoUrl = localImageService.uploadImage(logoFile, "logos");
+                tienda.setLogoUrl(logoUrl);
+            } catch (Exception e) {
+                throw new RuntimeException("Error al actualizar logo: " + e.getMessage(), e);
+            }
         }
         return tiendaRepository.save(tienda);
     }

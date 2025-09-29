@@ -18,7 +18,7 @@ public class ProductoServiceImpl implements ProductoService {
     private ProductoRepository productoRepository;
 
     @Autowired
-    private S3ImageService s3ImageService;
+    private LocalImageService localImageService;
 
     @Override
     public List<Producto> findByTienda(Tienda tienda) {
@@ -27,19 +27,23 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     public Producto createProducto(ProductoDTO productoDTO, Tienda tienda, MultipartFile imagenFile) {
-        // 1. Subir la imagen usando S3 o filesystem local
-        String imagenUrl = s3ImageService.uploadProductImage(imagenFile);
+        try {
+            // 1. Subir la imagen usando almacenamiento local
+            String imagenUrl = localImageService.uploadImage(imagenFile, "productos");
 
-        // 2. Crear la nueva entidad Producto
-        Producto nuevoProducto = new Producto();
-        nuevoProducto.setNombre(productoDTO.getNombre());
-        nuevoProducto.setDescripcion(productoDTO.getDescripcion());
-        nuevoProducto.setPrecio(productoDTO.getPrecio());
-        nuevoProducto.setImagenUrl(imagenUrl);
-        nuevoProducto.setTienda(tienda);
-        nuevoProducto.setDisponible(true); // Por defecto, un nuevo producto está disponible
+            // 2. Crear la nueva entidad Producto
+            Producto nuevoProducto = new Producto();
+            nuevoProducto.setNombre(productoDTO.getNombre());
+            nuevoProducto.setDescripcion(productoDTO.getDescripcion());
+            nuevoProducto.setPrecio(productoDTO.getPrecio());
+            nuevoProducto.setImagenUrl(imagenUrl);
+            nuevoProducto.setTienda(tienda);
+            nuevoProducto.setDisponible(true); // Por defecto, un nuevo producto está disponible
 
-        return productoRepository.save(nuevoProducto);
+            return productoRepository.save(nuevoProducto);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al crear producto: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -49,29 +53,33 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     public Producto updateProducto(Integer id, ProductoDTO productoDTO, MultipartFile imagenFile) {
-        // 1. Buscar el producto existente
-        Producto producto = productoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Producto no encontrado con ID: " + id));
+        try {
+            // 1. Buscar el producto existente
+            Producto producto = productoRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado con ID: " + id));
 
-        // 2. Actualizar los campos básicos
-        producto.setNombre(productoDTO.getNombre());
-        producto.setDescripcion(productoDTO.getDescripcion());
-        producto.setPrecio(productoDTO.getPrecio());
-        producto.setDisponible(productoDTO.getDisponible() != null ? productoDTO.getDisponible() : true);
+            // 2. Actualizar los campos básicos
+            producto.setNombre(productoDTO.getNombre());
+            producto.setDescripcion(productoDTO.getDescripcion());
+            producto.setPrecio(productoDTO.getPrecio());
+            producto.setDisponible(productoDTO.getDisponible() != null ? productoDTO.getDisponible() : true);
 
-        // 3. Actualizar la imagen si se proporciona una nueva
-        if (imagenFile != null && !imagenFile.isEmpty()) {
-            // Eliminar la imagen anterior si existe
-            if (producto.getImagenUrl() != null && !producto.getImagenUrl().isEmpty()) {
-                s3ImageService.deleteImage(producto.getImagenUrl());
+            // 3. Actualizar la imagen si se proporciona una nueva
+            if (imagenFile != null && !imagenFile.isEmpty()) {
+                // Eliminar la imagen anterior si existe
+                if (producto.getImagenUrl() != null && !producto.getImagenUrl().isEmpty()) {
+                    localImageService.deleteImage(producto.getImagenUrl());
+                }
+                // Subir la nueva imagen
+                String nuevaImagenUrl = localImageService.uploadImage(imagenFile, "productos");
+                producto.setImagenUrl(nuevaImagenUrl);
             }
-            // Subir la nueva imagen
-            String nuevaImagenUrl = s3ImageService.uploadProductImage(imagenFile);
-            producto.setImagenUrl(nuevaImagenUrl);
-        }
 
-        // 4. Guardar los cambios
-        return productoRepository.save(producto);
+            // 4. Guardar los cambios
+            return productoRepository.save(producto);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al actualizar producto: " + e.getMessage(), e);
+        }
     }
 
     @Override

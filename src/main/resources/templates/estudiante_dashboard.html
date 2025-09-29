@@ -10,38 +10,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json">
-    
-    <!-- iOS PWA Support -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Uni-Eats">
-    <link rel="apple-touch-icon" href="/img/icons/logo.png">
-    
-    <!-- Android PWA Support -->
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="application-name" content="Uni-Eats">
-    
-    <!-- Windows PWA Support -->
-    <meta name="msapplication-TileColor" content="#4f46e5">
-    <meta name="msapplication-TileImage" content="/img/icons/logo.png">
-    
-    <!-- Theme and display -->
-    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#312e81" media="(prefers-color-scheme: dark)">
-    <meta name="theme-color" content="#667eea">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Uni-Eats">
-    
-    <!-- PWA Icons -->
-    <link rel="apple-touch-icon" href="/img/icons/icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/img/icons/icon-32x32.png">
-    
-    <!-- PWA Styles -->
-    <link rel="stylesheet" href="/css/pwa-styles.css">
-    
     <style>
         body { font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
         /* Ocultar scrollbars en carruseles */
@@ -67,7 +35,7 @@
         @keyframes fade-out { to { opacity: 0; } }
         .animate-fade-out { animation: fade-out 0.3s ease-in forwards; }
         
-        /* 📱 NAVEGACIÓN FIJA MOBILE - ESENCIAL PWA */
+        /* 📱 NAVEGACIÓN FIJA MOBILE */
         #app-nav {
             position: fixed !important;
             bottom: 0 !important;
@@ -93,7 +61,7 @@
             padding-bottom: 0 !important;
         }
         
-        /* En PWA standalone, ajustar para safe areas */
+        /* En móviles, ajustar para navegación */
         @media (display-mode: standalone) {
             #app-nav {
                 padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
@@ -159,14 +127,14 @@
             }
         }
 
-        /* Forzar modo app si viene de PWA */
-        body[data-pwa-mode="standalone"] {
+        /* Forzar modo app */
+        body[data-app-mode="standalone"] {
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
         }
         
-        body[data-pwa-mode="standalone"] #app-header {
+        body[data-app-mode="standalone"] #app-header {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
@@ -203,12 +171,7 @@
             </div>
             <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-purple-600 transition-colors">Pedidos</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" id="download-app-nav" onclick="console.log('Botón clickeado'); if(window.pwaInstaller) { console.log('PWA Installer disponible'); window.pwaInstaller.showDownloadOptions(); } else { console.log('PWA Installer NO disponible'); alert('El sistema PWA no está disponible. Refresca la página.'); }">
-            <div class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-all group-hover:from-indigo-600 group-hover:to-purple-600">
-                <i class="fas fa-download text-white text-xs"></i>
-            </div>
-            <span class="text-xs text-indigo-600 font-bold mt-1 group-hover:text-indigo-700 transition-colors">Descargar</span>
-        </a>
+
         <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="perfil">
             <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-600 transition-all shadow-md group-hover:scale-110">
                 <i class="fas fa-user text-gray-500 text-xs group-hover:text-white transition-colors"></i>
@@ -217,20 +180,11 @@
         </a>
     </nav>
     
-    <!-- PWA Scripts -->
-    <script src="/js/pwa-config.js"></script>
-    <script src="/js/connection-manager.js"></script>
-    <script src="/js/image-optimizer.js"></script>
-    <script src="/js/pwa-installer.js"></script>
-    <script src="/js/pwa-standalone.js"></script>
-    <script src="/js/push-notifications.js"></script>
-    <script src="/js/pwa-init.js"></script>
-    
     <!-- Main App Script -->
     <script th:src="@{/js/comprador.js}"></script>
 
     <script>
-        // PWA Enhancements para estudiantes
+        // Dashboard functionality for students
         document.addEventListener('DOMContentLoaded', function() {
             // Agregar indicador de conexión
             const nav = document.getElementById('app-nav');
@@ -278,57 +232,6 @@
                     pullDistance = 0;
                 });
             }
-
-            // Configurar notificaciones para estudiantes
-            if (window.PushManager) {
-                window.PushManager.setVapidPublicKey('YOUR_VAPID_PUBLIC_KEY_HERE');
-                
-                // Auto-subscribe with student preferences
-                setTimeout(() => {
-                    window.PushManager.subscribe({
-                        orderUpdates: true,
-                        promotions: true,
-                        newOrders: false // Students don't need new order notifications
-                    }).catch(err => {
-                        console.log('Usuario no aceptó notificaciones:', err.message);
-                    });
-                }, 5000);
-            }
-
-            // Escuchar eventos de navegación desde notificaciones
-            window.addEventListener('trackOrder', (e) => {
-                const { orderId } = e.detail;
-                // Navigate to order tracking
-                const nav = document.querySelector('[data-view="misPedidos"]');
-                if (nav) nav.click();
-                
-                // Show specific order details
-                setTimeout(() => {
-                    const orderElement = document.querySelector(`[data-order-id="${orderId}"]`);
-                    if (orderElement) {
-                        orderElement.scrollIntoView({ behavior: 'smooth' });
-                        orderElement.classList.add('ring-2', 'ring-blue-500');
-                    }
-                }, 1000);
-            });
-
-            // Offline handling para carrito
-            window.addEventListener('connectionchange', (e) => {
-                const { isOnline } = e.detail;
-                
-                if (!isOnline) {
-                    // Show offline banner
-                    const offlineBanner = document.createElement('div');
-                    offlineBanner.id = 'student-offline-banner';
-                    offlineBanner.className = 'fixed top-0 left-0 right-0 bg-amber-500 text-white text-center py-2 text-sm z-50';
-                    offlineBanner.innerHTML = '📱 Modo offline - Los pedidos se enviarán cuando recuperes conexión';
-                    document.body.appendChild(offlineBanner);
-                } else {
-                    // Remove offline banner
-                    const banner = document.getElementById('student-offline-banner');
-                    if (banner) banner.remove();
-                }
-            });
         });
     </script>
 </body>

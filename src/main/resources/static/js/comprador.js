@@ -1334,7 +1334,7 @@ document.addEventListener("DOMContentLoaded", () => {
         getPerfilHTML() {
             return `<div class="bg-white rounded-lg shadow-sm">
                         <a href="#" class="profile-link" data-action="navigate" data-view="misPedidos"><i class="fas fa-receipt profile-icon text-indigo-500"></i><span class="font-semibold">Mis Pedidos</span><i class="fas fa-chevron-right text-slate-300 ml-auto"></i></a>
-                        <form action="/logout" method="post"><input type="hidden" name="${State.csrfHeader}" value="${State.csrfToken}"><button type="submit" class="profile-link w-full text-left text-red-500"><i class="fas fa-sign-out-alt profile-icon"></i><span class="font-semibold">Cerrar Sesión</span></button></form>
+                        <form action="/logout" method="post"><input type="hidden" name="_csrf" value="${State.csrfToken}"><button type="submit" class="profile-link w-full text-left text-red-500"><i class="fas fa-sign-out-alt profile-icon"></i><span class="font-semibold">Cerrar Sesión</span></button></form>
                     </div>`;
         },
 

@@ -29,12 +29,17 @@ public class SecurityConfig {
                     "/js/**",
                     "/img/**",
                     "/uploads/**",
-                    "/api/marketplace/**" // Permitimos ver tiendas sin iniciar sesión
+                    "/api/marketplace/**", // Permitimos ver tiendas sin iniciar sesión
+                    "/error/**", // Permitir páginas de error
+                    "/custom-logout" // Permitir logout personalizado
                 ).permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMIN_PLATAFORMA")
                 .requestMatchers("/vendedor/**", "/api/vendedor/**").hasRole("VENDEDOR")
                 .requestMatchers("/api/pedidos/crear").authenticated()
                 .anyRequest().authenticated()
+            )
+            .exceptionHandling(exceptions -> exceptions
+                .accessDeniedPage("/error/403") // Página personalizada para errores 403
             )
             .formLogin(form -> form
                 .loginPage("/login")
@@ -44,12 +49,14 @@ public class SecurityConfig {
             .logout(logout -> logout
                 .logoutUrl("/logout")
                 .logoutSuccessUrl("/login?logout")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID")
                 .permitAll()
             );
 
-        // ↓↓↓ AJUSTE IMPORTANTE PARA SOLUCIONAR EL ERROR 403 ↓↓↓
+        // ↓↓↓ CONFIGURACIÓN CSRF PARA SOLUCIONAR ERROR 403 EN LOGOUT ↓↓↓
         http.csrf(csrf -> csrf
-            .ignoringRequestMatchers("/api/**") // Deshabilita CSRF para todas las rutas de la API
+            .ignoringRequestMatchers("/api/**", "/logout", "/custom-logout") // Deshabilita CSRF para API y logout
         );
 
         return http.build();

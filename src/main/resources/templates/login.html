@@ -5,6 +5,9 @@
     <title>Bienvenido a Uni-Eats Marketplace</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- Meta refresh como respaldo para logout (solo si hay parámetro logout) -->
+    <meta th:if="${param.logout}" http-equiv="refresh" content="15;url=/login">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,6 +35,28 @@
         }
         .animate-fadeInUp { 
             animation: fadeInUp 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        /* Estilos para el countdown de logout */
+        #logout-countdown {
+            display: inline-block;
+            transition: all 0.3s ease;
+            color: #059669;
+        }
+        
+        .logout-success {
+            animation: slideInDown 0.5s ease-out;
+        }
+        
+        @keyframes slideInDown {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         /* --- CSS "SÚPER PRO" CON FLOATING LABELS --- */
@@ -88,9 +113,42 @@
                     <i class="fas fa-exclamation-triangle mr-3"></i>
                     <span>Correo o contraseña inválidos.</span>
                 </div>
-                <div th:if="${param.logout}" class="mb-4 p-3 text-sm text-green-800 bg-green-100 border-l-4 border-green-500 rounded-md flex items-center">
-                    <i class="fas fa-check-circle mr-3"></i>
-                    <span>Has cerrado sesión exitosamente.</span>
+                <div th:if="${param.logout}" class="mb-6 p-6 bg-green-100 border-2 border-green-300 rounded-lg" style="background-color: #dcfce7 !important; border-color: #22c55e !important;">
+                    <div class="text-center">
+                        <div class="mb-4">
+                            <i class="fas fa-check-circle text-4xl text-green-600"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-green-800 mb-2">¡Sesión cerrada exitosamente!</h3>
+                        <p class="text-green-700 mb-4">Puedes iniciar sesión nuevamente cuando lo desees.</p>
+                        
+                        <div class="bg-white p-4 rounded-lg border border-green-200 mb-4">
+                            <div class="text-green-600 mb-3">
+                                <i class="fas fa-clock mr-2"></i>
+                                <span>Redirigiendo automáticamente en</span>
+                            </div>
+                            <div class="text-2xl font-bold text-green-800" id="logout-countdown">10</div>
+                            <div class="text-sm text-green-600">segundos</div>
+                        </div>
+                        
+                        <button type="button" onclick="redirectToLogin();" 
+                                class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg transition duration-200 shadow-lg transform hover:scale-105">
+                            <i class="fas fa-sign-in-alt mr-2"></i>
+                            Ir al Login Ahora
+                        </button>
+                        
+                        <!-- Botones adicionales de emergencia -->
+                        <div class="mt-3 space-y-2">
+                            <a href="/login" class="block w-full bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold py-2 px-4 rounded-md transition duration-200 text-center">
+                                🔄 Enlace directo al login
+                            </a>
+                            <button onclick="window.location.href='/login';" class="block w-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold py-2 px-4 rounded-md transition duration-200">
+                                ⚡ Redirección JavaScript
+                            </button>
+                            <button onclick="window.location.reload();" class="block w-full bg-gray-500 hover:bg-gray-600 text-white text-sm font-semibold py-2 px-4 rounded-md transition duration-200">
+                                🔄 Recargar página
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div th:if="${success}" class="mb-4 p-3 text-sm text-green-800 bg-green-100 border-l-4 border-green-500 rounded-md flex items-center">
                     <i class="fas fa-check-circle mr-3"></i>
@@ -146,6 +204,81 @@
             eyeIcon.classList.toggle('fa-eye', !isPassword);
             eyeIcon.classList.toggle('fa-eye-slash', isPassword);
         });
+
+        // ===== DIAGNÓSTICO Y SOLUCIÓN ROBUSTA PARA LOGOUT =====
+        
+        console.log('🔍 DIAGNÓSTICO INICIAL:');
+        console.log('- URL actual:', window.location.href);
+        console.log('- Search params:', window.location.search);
+        console.log('- Document ready state:', document.readyState);
+        console.log('- User agent:', navigator.userAgent);
+        
+        // ===== SOLUCIÓN ROBUSTA PARA LOGOUT CON MÚLTIPLES FALLBACKS =====
+        
+        function redirectToLogin() {
+            console.log('🚀 REDIRECT: Iniciando redirección múltiple...');
+            
+            // Método 1: Redirección inmediata con replace
+            try {
+                console.log('🔄 Método 1: window.location.replace');
+                window.location.replace('/login');
+                return;
+            } catch (e) {
+                console.error('❌ Método 1 falló:', e);
+            }
+            
+            // Método 2: Redirección con href
+            try {
+                console.log('🔄 Método 2: window.location.href');
+                window.location.href = '/login';
+                return;
+            } catch (e) {
+                console.error('❌ Método 2 falló:', e);
+            }
+            
+            // Método 3: Forzar recarga completa
+            try {
+                console.log('🔄 Método 3: window.location.assign');
+                window.location.assign('/login');
+                return;
+            } catch (e) {
+                console.error('❌ Método 3 falló:', e);
+            }
+            
+            // Método 4: Recarga completa como último recurso
+            console.log('🔄 Método 4: Recarga completa');
+            window.location.reload(true);
+        }
+        
+        // Auto-redirección inmediata si hay parámetro logout
+        if (window.location.search.includes('logout')) {
+            console.log('✅ LOGOUT DETECTADO - Iniciando proceso...');
+            
+            // Configurar redirección automática después de 10 segundos
+            let timeLeft = 10;
+            const countdownElement = document.getElementById('logout-countdown');
+            
+            // Actualizar countdown cada segundo
+            const interval = setInterval(() => {
+                timeLeft--;
+                if (countdownElement) {
+                    countdownElement.textContent = timeLeft;
+                }
+                console.log('⏰ Tiempo restante:', timeLeft, 'segundos');
+                
+                if (timeLeft <= 0) {
+                    clearInterval(interval);
+                    console.log('⏰ Tiempo agotado - Ejecutando redirección');
+                    redirectToLogin();
+                }
+            }, 1000);
+            
+            // También configurar un fallback adicional por si acaso
+            setTimeout(() => {
+                console.log('🚨 FALLBACK: Ejecutando redirección de emergencia');
+                redirectToLogin();
+            }, 12000); // 12 segundos como respaldo
+        }
     </script>
 </body>
 </html>

@@ -102,4 +102,19 @@ public class AppController {
         redirectAttributes.addFlashAttribute("success", "Tu contraseña ha sido cambiada exitosamente. Ya puedes iniciar sesión.");
         return "redirect:/login";
     }
+    
+    @GetMapping("/error/403")
+    public String error403() {
+        return "error/403";
+    }
+    
+    @PostMapping("/custom-logout")
+    public String customLogout(HttpServletRequest request, RedirectAttributes redirectAttributes) {
+        // Invalidar la sesión manualmente
+        if (request.getSession(false) != null) {
+            request.getSession().invalidate();
+        }
+        redirectAttributes.addFlashAttribute("success", "Has cerrado sesión exitosamente.");
+        return "redirect:/login?logout";
+    }
 }

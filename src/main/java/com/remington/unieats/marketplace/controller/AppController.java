@@ -53,14 +53,93 @@ public class AppController {
     }
 
     @PostMapping("/registro")
-    public String registrarCuentaDeEstudiante(@ModelAttribute("estudiante") EstudianteRegistroDTO registroDTO, RedirectAttributes redirectAttributes) {
+    public String registrarCuentaDeEstudiante(@ModelAttribute("estudiante") EstudianteRegistroDTO registroDTO, 
+                                            Model model, 
+                                            RedirectAttributes redirectAttributes) {
         try {
+            // Validaciones básicas en el backend
+            if (registroDTO.getNombre() == null || registroDTO.getNombre().trim().isEmpty()) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "El nombre es obligatorio");
+                return "registro";
+            }
+            
+            if (registroDTO.getApellido() == null || registroDTO.getApellido().trim().isEmpty()) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "El apellido es obligatorio");
+                return "registro";
+            }
+            
+            if (registroDTO.getCedula() == null || registroDTO.getCedula().trim().isEmpty()) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "La cédula es obligatoria");
+                return "registro";
+            }
+            
+            if (registroDTO.getCorreo() == null || registroDTO.getCorreo().trim().isEmpty()) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "El correo electrónico es obligatorio");
+                return "registro";
+            }
+            
+            if (registroDTO.getPassword() == null || registroDTO.getPassword().trim().isEmpty()) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "La contraseña es obligatoria");
+                return "registro";
+            }
+            
+            // Validaciones de longitud y formato
+            if (registroDTO.getCedula().length() < 6 || registroDTO.getCedula().length() > 12) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "La cédula debe tener entre 6 y 12 dígitos");
+                return "registro";
+            }
+            
+            if (!registroDTO.getCedula().matches("^[0-9]+$")) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "La cédula solo puede contener números");
+                return "registro";
+            }
+            
+            if (registroDTO.getPassword().length() < 8 || registroDTO.getPassword().length() > 50) {
+                model.addAttribute("estudiante", registroDTO);
+                model.addAttribute("error", "La contraseña debe tener entre 8 y 50 caracteres");
+                return "registro";
+            }
+            
+                // Validaciones adicionales para contraseña segura
+                String password = registroDTO.getPassword();
+                if (!password.matches(".*[a-z].*")) {
+                    model.addAttribute("estudiante", registroDTO);
+                    model.addAttribute("error", "La contraseña debe contener al menos una letra minúscula");
+                    return "registro";
+                }
+            
+                if (!password.matches(".*[A-Z].*")) {
+                    model.addAttribute("estudiante", registroDTO);
+                    model.addAttribute("error", "La contraseña debe contener al menos una letra mayúscula");
+                    return "registro";
+                }
+            
+                if (!password.matches(".*[0-9].*")) {
+                    model.addAttribute("estudiante", registroDTO);
+                    model.addAttribute("error", "La contraseña debe contener al menos un número");
+                    return "registro";
+                }
+            
+                if (!password.matches(".*[@$!%*?&].*")) {
+                    model.addAttribute("estudiante", registroDTO);
+                    model.addAttribute("error", "La contraseña debe contener al menos un carácter especial (@$!%*?&)");
+                    return "registro";
+                }
+            
             usuarioService.registrarEstudiante(registroDTO);
             redirectAttributes.addFlashAttribute("success", "¡Te has registrado exitosamente! Ya puedes iniciar sesión.");
             return "redirect:/login";
         } catch (RuntimeException e) {
-            redirectAttributes.addFlashAttribute("error", e.getMessage());
-            return "redirect:/registro?error";
+            model.addAttribute("estudiante", registroDTO);
+            model.addAttribute("error", e.getMessage());
+            return "registro";
         }
     }
 

@@ -51,6 +51,30 @@
             font-size: 0.75rem; /* 12px */
             color: #f59e0b; /* amber-500 */
         }
+
+        /* Estilos para campos con error */
+        .input-field.border-red-500 + .floating-label {
+            color: #ef4444 !important; /* red-500 */
+        }
+
+        /* Transiciones suaves para los bordes */
+        .input-field {
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        /* Estilo para mensajes de error */
+        .error-message {
+            font-size: 0.75rem;
+            line-height: 1rem;
+            margin-top: 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .error-message::before {
+            content: "⚠️";
+            margin-right: 0.25rem;
+        }
     </style>
 </head>
 <body class="antialiased text-slate-800">
@@ -76,36 +100,86 @@
                 <p th:text="${error} ?: 'Ocurrió un error. Por favor, inténtalo de nuevo.'"></p>
             </div>
 
-            <form th:action="@{/registro}" th:object="${estudiante}" method="post" autocomplete="off" class="space-y-5">
+            <form th:action="@{/registro}" th:object="${estudiante}" method="post" autocomplete="off" class="space-y-5" id="registro-form">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div class="relative">
-                        <input type="text" th:field="*{nombre}" required placeholder=" "
-                               class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition">
+                        <input type="text" th:field="*{nombre}" required placeholder=" " id="nombre"
+                               maxlength="30" minlength="2" pattern="[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s]+"
+                               class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition"
+                               title="Solo letras y espacios, entre 2 y 30 caracteres">
                         <label for="nombre" class="floating-label">Nombre</label>
+                        <div id="nombre-error" class="error-message text-red-600 hidden"></div>
                     </div>
                     <div class="relative">
-                        <input type="text" th:field="*{apellido}" required placeholder=" "
-                               class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition">
+                        <input type="text" th:field="*{apellido}" required placeholder=" " id="apellido"
+                               maxlength="40" minlength="2" pattern="[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s]+"
+                               class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition"
+                               title="Solo letras y espacios, entre 2 y 40 caracteres">
                         <label for="apellido" class="floating-label">Apellido</label>
+                        <div id="apellido-error" class="error-message text-red-600 hidden"></div>
                     </div>
                 </div>
 
                 <div class="relative">
-                    <input type="text" th:field="*{cedula}" required placeholder=" "
-                           class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition">
+                    <input type="text" th:field="*{cedula}" required placeholder=" " id="cedula"
+                           maxlength="12" minlength="6" pattern="[0-9]+" inputmode="numeric"
+                           class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition"
+                           title="Solo números, entre 6 y 12 dígitos">
                     <label for="cedula" class="floating-label">Cédula</label>
+                    <div id="cedula-error" class="error-message text-red-600 hidden"></div>
                 </div>
                 
                 <div class="relative">
-                    <input type="email" th:field="*{correo}" required placeholder=" "
-                           class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition">
+                    <input type="tel" th:field="*{telefono}" placeholder=" " id="telefono"
+                           maxlength="10" pattern="[0-9]+" inputmode="numeric"
+                           class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition"
+                           title="Solo números, máximo 10 dígitos (opcional)">
+                    <label for="telefono" class="floating-label">Teléfono (Opcional)</label>
+                    <div id="telefono-error" class="error-message text-red-600 hidden"></div>
+                </div>
+                
+                <div class="relative">
+                    <input type="email" th:field="*{correo}" required placeholder=" " id="correo"
+                           maxlength="100"
+                           class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition"
+                           title="Ingresa un correo electrónico válido">
                     <label for="correo" class="floating-label">Correo Electrónico</label>
+                    <div id="correo-error" class="error-message text-red-600 hidden"></div>
                 </div>
                 
                 <div class="relative">
-                    <input type="password" th:field="*{password}" required placeholder=" "
-                           class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition">
+                    <input type="password" th:field="*{password}" required placeholder=" " id="password"
+                           maxlength="50" minlength="8"
+                           class="input-field block w-full px-4 py-2.5 bg-transparent border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-0 focus:border-amber-500 transition pr-12"
+                           title="Mínimo 8 caracteres, debe incluir mayúscula, minúscula, número y carácter especial">
                     <label for="password" class="floating-label">Contraseña</label>
+                    
+                    <!-- Botón mostrar/ocultar contraseña -->
+                    <button type="button" id="toggle-password" class="absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 hover:text-slate-600">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    
+                    <!-- Indicadores de validación de contraseña -->
+                    <div class="mt-2">
+                        <!-- Barra de fortaleza -->
+                        <div class="mb-2">
+                            <div class="text-xs text-gray-600 mb-1">
+                                Fortaleza: <span id="strength-text" class="font-medium">Muy débil</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div id="strength-bar" class="h-2 rounded-full transition-all duration-300" style="width: 0%; background-color: #ef4444;"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Requisitos específicos -->
+                        <div class="text-xs space-y-1">
+                            <div id="req-length" class="text-red-600">❌ Mínimo 8 caracteres</div>
+                            <div id="req-lowercase" class="text-red-600">❌ Al menos una minúscula</div>
+                            <div id="req-uppercase" class="text-red-600">❌ Al menos una mayúscula</div>
+                            <div id="req-number" class="text-red-600">❌ Al menos un número</div>
+                            <div id="req-special" class="text-red-600">❌ Al menos un carácter especial (@$!%*?&)</div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div>
@@ -123,6 +197,372 @@
             </div>
         </div>
     </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Referencias a todos los elementos del formulario
+            const nombreInput = document.getElementById('nombre');
+            const apellidoInput = document.getElementById('apellido');
+            const cedulaInput = document.getElementById('cedula');
+            const telefonoInput = document.getElementById('telefono');
+            const correoInput = document.getElementById('correo');
+            const passwordInput = document.getElementById('password');
+            const togglePasswordBtn = document.getElementById('toggle-password');
+
+            // Funciones de utilidad para mostrar/ocultar errores
+            function showError(fieldId, message) {
+                const errorDiv = document.getElementById(fieldId + '-error');
+                const input = document.getElementById(fieldId);
+                
+                if (errorDiv && input) {
+                    errorDiv.textContent = message;
+                    errorDiv.classList.remove('hidden');
+                    input.classList.remove('border-slate-300', 'border-green-500');
+                    input.classList.add('border-red-500');
+                }
+            }
+
+            function hideError(fieldId) {
+                const errorDiv = document.getElementById(fieldId + '-error');
+                const input = document.getElementById(fieldId);
+                
+                if (errorDiv && input) {
+                    errorDiv.classList.add('hidden');
+                    input.classList.remove('border-red-500');
+                    input.classList.add('border-green-500');
+                }
+            }
+
+            // Función para restringir entrada solo a números
+            function restrictToNumbers(input) {
+                if (!input) return;
+                
+                input.addEventListener('input', function(e) {
+                    // Remover cualquier carácter que no sea número
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                });
+                
+                input.addEventListener('keypress', function(e) {
+                    // Permitir solo números, backspace, delete, tab, escape, enter, flechas
+                    if (!/[0-9]/.test(e.key) && 
+                        !['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                        e.preventDefault();
+                    }
+                });
+            }
+
+            // Función para validar nombre
+            function validateNombre() {
+                if (!nombreInput) return true;
+                
+                const value = nombreInput.value.trim();
+                const namePattern = /^[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s]+$/;
+                
+                if (value.length === 0) {
+                    showError('nombre', 'El nombre es obligatorio');
+                    return false;
+                } else if (value.length < 2) {
+                    showError('nombre', 'El nombre debe tener al menos 2 caracteres');
+                    return false;
+                } else if (value.length > 30) {
+                    showError('nombre', 'El nombre no puede exceder 30 caracteres');
+                    return false;
+                } else if (!namePattern.test(value)) {
+                    showError('nombre', 'El nombre solo puede contener letras y espacios');
+                    return false;
+                } else if (/\s{2,}/.test(value)) {
+                    showError('nombre', 'No se permiten espacios múltiples consecutivos');
+                    return false;
+                } else {
+                    hideError('nombre');
+                    return true;
+                }
+            }
+
+            // Función para validar apellido
+            function validateApellido() {
+                if (!apellidoInput) return true;
+                
+                const value = apellidoInput.value.trim();
+                const namePattern = /^[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s]+$/;
+                
+                if (value.length === 0) {
+                    showError('apellido', 'El apellido es obligatorio');
+                    return false;
+                } else if (value.length < 2) {
+                    showError('apellido', 'El apellido debe tener al menos 2 caracteres');
+                    return false;
+                } else if (value.length > 40) {
+                    showError('apellido', 'El apellido no puede exceder 40 caracteres');
+                    return false;
+                } else if (!namePattern.test(value)) {
+                    showError('apellido', 'El apellido solo puede contener letras y espacios');
+                    return false;
+                } else if (/\s{2,}/.test(value)) {
+                    showError('apellido', 'No se permiten espacios múltiples consecutivos');
+                    return false;
+                } else {
+                    hideError('apellido');
+                    return true;
+                }
+            }
+
+            // Función para validar cédula
+            function validateCedula() {
+                if (!cedulaInput) return true;
+                
+                const value = cedulaInput.value.trim();
+                const cedulaPattern = /^[0-9]+$/;
+                
+                if (value.length === 0) {
+                    showError('cedula', 'La cédula es obligatoria');
+                    return false;
+                } else if (!cedulaPattern.test(value)) {
+                    showError('cedula', 'La cédula solo puede contener números');
+                    return false;
+                } else if (value.length < 6) {
+                    showError('cedula', 'La cédula debe tener al menos 6 dígitos');
+                    return false;
+                } else if (value.length > 12) {
+                    showError('cedula', 'La cédula no puede exceder 12 dígitos');
+                    return false;
+                } else {
+                    hideError('cedula');
+                    return true;
+                }
+            }
+
+            // Función para validar teléfono
+            function validateTelefono() {
+                if (!telefonoInput) return true;
+                
+                const value = telefonoInput.value.trim();
+                
+                // El teléfono es opcional
+                if (value.length === 0) {
+                    hideError('telefono');
+                    return true;
+                }
+                
+                const telefonoPattern = /^[0-9]+$/;
+                
+                if (!telefonoPattern.test(value)) {
+                    showError('telefono', 'El teléfono solo puede contener números');
+                    return false;
+                } else if (value.length < 7) {
+                    showError('telefono', 'El teléfono debe tener al menos 7 dígitos');
+                    return false;
+                } else if (value.length > 10) {
+                    showError('telefono', 'El teléfono no puede exceder 10 dígitos');
+                    return false;
+                } else if (value.length === 10 && !value.startsWith('3')) {
+                    showError('telefono', 'Los números móviles de 10 dígitos deben iniciar con 3');
+                    return false;
+                } else {
+                    hideError('telefono');
+                    return true;
+                }
+            }
+
+            // Función para validar correo
+            function validateCorreo() {
+                if (!correoInput) return true;
+                
+                const value = correoInput.value.trim();
+                const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                
+                if (value.length === 0) {
+                    showError('correo', 'El correo electrónico es obligatorio');
+                    return false;
+                } else if (!emailPattern.test(value)) {
+                    showError('correo', 'Por favor ingresa un correo electrónico válido');
+                    return false;
+                } else if (value.length > 100) {
+                    showError('correo', 'El correo no puede exceder 100 caracteres');
+                    return false;
+                } else {
+                    hideError('correo');
+                    return true;
+                }
+            }
+
+            // Función para validar contraseña segura
+            function validatePassword() {
+                if (!passwordInput) return false;
+                
+                const value = passwordInput.value;
+                const requirements = {
+                    length: value.length >= 8,
+                    lowercase: /[a-z]/.test(value),
+                    uppercase: /[A-Z]/.test(value),
+                    number: /[0-9]/.test(value),
+                    special: /[@$!%*?&]/.test(value)
+                };
+
+                // Actualizar requisitos visuales
+                const reqLength = document.getElementById('req-length');
+                const reqLowercase = document.getElementById('req-lowercase');
+                const reqUppercase = document.getElementById('req-uppercase');
+                const reqNumber = document.getElementById('req-number');
+                const reqSpecial = document.getElementById('req-special');
+
+                if (reqLength) {
+                    reqLength.innerHTML = requirements.length ? '✅ Mínimo 8 caracteres' : '❌ Mínimo 8 caracteres';
+                    reqLength.className = requirements.length ? 'text-green-600' : 'text-red-600';
+                }
+                
+                if (reqLowercase) {
+                    reqLowercase.innerHTML = requirements.lowercase ? '✅ Al menos una minúscula' : '❌ Al menos una minúscula';
+                    reqLowercase.className = requirements.lowercase ? 'text-green-600' : 'text-red-600';
+                }
+                
+                if (reqUppercase) {
+                    reqUppercase.innerHTML = requirements.uppercase ? '✅ Al menos una mayúscula' : '❌ Al menos una mayúscula';
+                    reqUppercase.className = requirements.uppercase ? 'text-green-600' : 'text-red-600';
+                }
+                
+                if (reqNumber) {
+                    reqNumber.innerHTML = requirements.number ? '✅ Al menos un número' : '❌ Al menos un número';
+                    reqNumber.className = requirements.number ? 'text-green-600' : 'text-red-600';
+                }
+                
+                if (reqSpecial) {
+                    reqSpecial.innerHTML = requirements.special ? '✅ Al menos un carácter especial (@$!%*?&)' : '❌ Al menos un carácter especial (@$!%*?&)';
+                    reqSpecial.className = requirements.special ? 'text-green-600' : 'text-red-600';
+                }
+
+                // Calcular fortaleza de contraseña
+                const metRequirements = Object.values(requirements).filter(Boolean).length;
+                const strengthBar = document.getElementById('strength-bar');
+                const strengthText = document.getElementById('strength-text');
+
+                if (strengthBar && strengthText) {
+                    const strengthPercentage = (metRequirements / 5) * 100;
+                    strengthBar.style.width = strengthPercentage + '%';
+
+                    if (metRequirements === 0 || value.length === 0) {
+                        strengthBar.style.backgroundColor = '#ef4444';
+                        strengthText.textContent = 'Muy débil';
+                        strengthText.className = 'font-medium text-red-600';
+                    } else if (metRequirements <= 2) {
+                        strengthBar.style.backgroundColor = '#ef4444';
+                        strengthText.textContent = 'Débil';
+                        strengthText.className = 'font-medium text-red-600';
+                    } else if (metRequirements <= 4) {
+                        strengthBar.style.backgroundColor = '#f59e0b';
+                        strengthText.textContent = 'Media';
+                        strengthText.className = 'font-medium text-yellow-600';
+                    } else {
+                        strengthBar.style.backgroundColor = '#10b981';
+                        strengthText.textContent = 'Fuerte';
+                        strengthText.className = 'font-medium text-green-600';
+                    }
+                }
+
+                // Validar si cumple todos los requisitos
+                const allRequirementsMet = Object.values(requirements).every(Boolean);
+                
+                if (allRequirementsMet) {
+                    passwordInput.classList.remove('border-red-500');
+                    passwordInput.classList.add('border-green-500');
+                } else {
+                    passwordInput.classList.remove('border-green-500');
+                    if (value.length > 0) {
+                        passwordInput.classList.add('border-red-500');
+                    }
+                }
+
+                return allRequirementsMet;
+            }
+
+            // Mostrar/ocultar contraseña
+            if (togglePasswordBtn && passwordInput) {
+                togglePasswordBtn.addEventListener('click', () => {
+                    const isPassword = passwordInput.type === 'password';
+                    passwordInput.type = isPassword ? 'text' : 'password';
+                    const icon = togglePasswordBtn.querySelector('i');
+                    icon.classList.toggle('fa-eye', !isPassword);
+                    icon.classList.toggle('fa-eye-slash', isPassword);
+                });
+            }
+
+            // Configurar validaciones
+            restrictToNumbers(cedulaInput);
+            restrictToNumbers(telefonoInput);
+            
+            // Configurar validaciones en tiempo real para todos los campos
+            if (nombreInput) {
+                nombreInput.addEventListener('input', validateNombre);
+                nombreInput.addEventListener('blur', validateNombre);
+            }
+            
+            if (apellidoInput) {
+                apellidoInput.addEventListener('input', validateApellido);
+                apellidoInput.addEventListener('blur', validateApellido);
+            }
+            
+            if (cedulaInput) {
+                cedulaInput.addEventListener('input', validateCedula);
+                cedulaInput.addEventListener('blur', validateCedula);
+            }
+            
+            if (telefonoInput) {
+                telefonoInput.addEventListener('input', validateTelefono);
+                telefonoInput.addEventListener('blur', validateTelefono);
+            }
+            
+            if (correoInput) {
+                correoInput.addEventListener('input', validateCorreo);
+                correoInput.addEventListener('blur', validateCorreo);
+            }
+            
+            if (passwordInput) {
+                passwordInput.addEventListener('input', validatePassword);
+                // Validar inicialmente
+                validatePassword();
+            }
+
+            // Validación completa en el envío del formulario
+            const form = document.getElementById('registro-form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    // Ejecutar todas las validaciones
+                    const isNombreValid = validateNombre();
+                    const isApellidoValid = validateApellido();
+                    const isCedulaValid = validateCedula();
+                    const isTelefonoValid = validateTelefono();
+                    const isCorreoValid = validateCorreo();
+                    const isPasswordValid = validatePassword();
+                    
+                    // Verificar si todas las validaciones pasaron
+                    const isFormValid = isNombreValid && isApellidoValid && isCedulaValid && 
+                                       isTelefonoValid && isCorreoValid && isPasswordValid;
+                    
+                    if (!isFormValid) {
+                        e.preventDefault();
+                        
+                        // Encontrar el primer campo con error y hacer scroll hacia él
+                        const fieldsToCheck = ['nombre', 'apellido', 'cedula', 'telefono', 'correo', 'password'];
+                        for (const fieldId of fieldsToCheck) {
+                            const errorDiv = document.getElementById(fieldId + '-error');
+                            if (errorDiv && !errorDiv.classList.contains('hidden')) {
+                                const field = document.getElementById(fieldId);
+                                if (field) {
+                                    field.focus();
+                                    field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                                break;
+                            }
+                        }
+                        
+                        // Mostrar mensaje general de error
+                        alert('Por favor, corrige los errores en el formulario antes de continuar.');
+                        return false;
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
 

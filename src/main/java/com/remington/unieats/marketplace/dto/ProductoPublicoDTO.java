@@ -8,7 +8,8 @@ public class ProductoPublicoDTO {
     private String descripcion;
     private BigDecimal precio;
     private String imagenUrl;
-    private TiendaSimpleDTO tienda; // <-- CAMPO AÑADIDO
+    private String clasificacion; // 🍔 CAMPO AÑADIDO PARA FILTRADO POR CATEGORÍA
+    private TiendaSimpleDTO tienda;
 
     // Clase anidada simple para la tienda
     public static class TiendaSimpleDTO {
@@ -33,6 +34,8 @@ public class ProductoPublicoDTO {
     public void setPrecio(BigDecimal precio) { this.precio = precio; }
     public String getImagenUrl() { return imagenUrl; }
     public void setImagenUrl(String imagenUrl) { this.imagenUrl = imagenUrl; }
+    public String getClasificacion() { return clasificacion; } // 🍔 GETTER PARA CLASIFICACIÓN
+    public void setClasificacion(String clasificacion) { this.clasificacion = clasificacion; } // 🍔 SETTER PARA CLASIFICACIÓN
     public TiendaSimpleDTO getTienda() { return tienda; } // <-- GETTER AÑADIDO
     public void setTienda(TiendaSimpleDTO tienda) { this.tienda = tienda; } // <-- SETTER AÑADIDO
 }

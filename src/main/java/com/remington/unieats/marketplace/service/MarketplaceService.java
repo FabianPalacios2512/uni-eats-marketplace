@@ -1,12 +1,12 @@
 package com.remington.unieats.marketplace.service;
 
-import com.remington.unieats.marketplace.dto.ProductoPublicoDTO; // Importar
+import java.util.List; // Importar
+import java.util.Optional;
+
+import com.remington.unieats.marketplace.dto.ProductoDetalleDTO;
+import com.remington.unieats.marketplace.dto.ProductoPublicoDTO; // <-- Importar
 import com.remington.unieats.marketplace.dto.TiendaDetallePublicoDTO;
 import com.remington.unieats.marketplace.dto.TiendaPublicaDTO;
-import com.remington.unieats.marketplace.dto.ProductoDetalleDTO; // <-- Importar
-
-import java.util.List;
-import java.util.Optional;
 
 public interface MarketplaceService {
     List<TiendaPublicaDTO> getTiendasActivas();
@@ -16,4 +16,7 @@ public interface MarketplaceService {
     List<ProductoPublicoDTO> getProductosPopulares();
     List<ProductoPublicoDTO> getProductosDeTienda(Integer tiendaId);
     Optional<ProductoDetalleDTO> getDetalleProducto(Integer id);
+    
+    // NUEVOS MÉTODOS PARA BÚSQUEDA
+    List<ProductoPublicoDTO> buscarProductos(String termino);
 }

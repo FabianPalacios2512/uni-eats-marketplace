@@ -1,18 +1,24 @@
 package com.remington.unieats.marketplace.service;
 
-import com.remington.unieats.marketplace.dto.*;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.remington.unieats.marketplace.dto.CategoriaOpcionDTO;
+import com.remington.unieats.marketplace.dto.OpcionDTO;
+import com.remington.unieats.marketplace.dto.ProductoDetalleDTO;
+import com.remington.unieats.marketplace.dto.ProductoPublicoDTO;
+import com.remington.unieats.marketplace.dto.TiendaDetallePublicoDTO;
+import com.remington.unieats.marketplace.dto.TiendaPublicaDTO;
 import com.remington.unieats.marketplace.model.entity.Producto;
 import com.remington.unieats.marketplace.model.entity.Tienda;
 import com.remington.unieats.marketplace.model.enums.EstadoTienda;
 import com.remington.unieats.marketplace.model.repository.ProductoRepository;
 import com.remington.unieats.marketplace.model.repository.TiendaRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class MarketplaceServiceImpl implements MarketplaceService {
@@ -26,7 +32,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public List<TiendaPublicaDTO> getTiendasActivas() {
-        return tiendaRepository.findByEstado(EstadoTienda.ACTIVA)
+        return tiendaRepository.findByEstadoAndEstaAbierta(EstadoTienda.ACTIVA, true)
                 .stream()
                 .map(this::convertirATiendaPublicaDTO)
                 .collect(Collectors.toList());
@@ -42,6 +48,12 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         }
 
         Tienda tienda = tiendaOpt.get();
+        
+        // Verificar que la tienda esté abierta
+        if (!tienda.getEstaAbierta()) {
+            return Optional.empty();
+        }
+        
         List<Producto> productos = productoRepository.findByTiendaAndDisponible(tienda, true);
 
         TiendaDetallePublicoDTO dto = new TiendaDetallePublicoDTO();
@@ -57,7 +69,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductoPublicoDTO> getProductosPopulares() {
-        return productoRepository.findByTienda_EstadoAndDisponible(EstadoTienda.ACTIVA, true)
+        return productoRepository.findByTienda_EstadoAndTienda_EstaAbiertaAndDisponible(EstadoTienda.ACTIVA, true, true)
                 .stream()
                 .map(this::convertirAProductoPublicoDTO)
                 .collect(Collectors.toList());
@@ -113,7 +125,21 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductoPublicoDTO> getProductosDeTienda(Integer tiendaId) {
-        return productoRepository.findByTienda_IdAndDisponible(tiendaId, true)
+        return productoRepository.findByTienda_IdAndTienda_EstaAbiertaAndDisponible(tiendaId, true, true)
+                .stream()
+                .map(this::convertirAProductoPublicoDTO)
+                .collect(Collectors.toList());
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductoPublicoDTO> buscarProductos(String termino) {
+        if (termino == null || termino.trim().isEmpty()) {
+            return getProductosPopulares(); // Si no hay término, devolver productos populares
+        }
+        
+        return productoRepository.findByNombreContainingIgnoreCaseAndTienda_EstadoAndTienda_EstaAbiertaAndDisponible(
+                termino.trim(), EstadoTienda.ACTIVA, true, true)
                 .stream()
                 .map(this::convertirAProductoPublicoDTO)
                 .collect(Collectors.toList());
@@ -137,6 +163,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         dto.setDescripcion(producto.getDescripcion());
         dto.setPrecio(producto.getPrecio());
         dto.setImagenUrl(producto.getImagenUrl());
+        dto.setClasificacion(producto.getClasificacion() != null ? 
+            producto.getClasificacion().name() : "SIN_CATEGORIA"); // 🍔 CONVERTIR ENUM A STRING PARA FILTRADO
         
         ProductoPublicoDTO.TiendaSimpleDTO tiendaDTO = new ProductoPublicoDTO.TiendaSimpleDTO();
         tiendaDTO.setId(producto.getTienda().getId());

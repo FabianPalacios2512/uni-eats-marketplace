@@ -64,8 +64,8 @@
         
         /* Espacio para el contenido para que no se oculte detrás del nav */
         #app-container {
-            padding-bottom: 75px !important; /* Altura del nav + margen extra */
-            min-height: calc(100vh - 75px) !important;
+            padding-bottom: 60px !important; /* Altura del nav + margen extra reducido */
+            min-height: calc(100vh - 60px) !important;
         }
         
         /* Ajuste del contenedor principal */
@@ -76,11 +76,11 @@
         /* En móviles, ajustar para navegación */
         @media (display-mode: standalone) {
             #app-nav {
-                padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+                padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
             }
             #app-container {
-                padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
-                min-height: calc(100vh - 100px - env(safe-area-inset-bottom, 0px)) !important;
+                padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+                min-height: calc(100vh - 70px - env(safe-area-inset-bottom, 0px)) !important;
             }
         }
 
@@ -164,24 +164,24 @@
         <main id="app-container" class="px-1 pt-1"></main>
     </div>
 
-    <nav id="app-nav" class="flex justify-around shadow-lg py-3 bg-white/95 backdrop-blur-xl">
-        <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-1 relative group" data-view="inicio">
-            <div class="w-9 h-9 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <i class="fas fa-home text-white text-sm"></i>
+    <nav id="app-nav" class="flex justify-around shadow-lg py-2 bg-white/95 backdrop-blur-xl">
+        <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-0.5 relative group" data-view="inicio">
+            <div class="w-7 h-7 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                <i class="fas fa-home text-white text-xs"></i>
             </div>
-            <span class="text-xs text-teal-600 font-semibold mt-1 group-hover:text-teal-700 transition-colors">Inicio</span>
+            <span class="text-xs text-teal-600 font-semibold mt-0.5 group-hover:text-teal-700 transition-colors">Inicio</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="tiendas">
-            <div class="w-9 h-9 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-cyan-500 group-hover:to-blue-500 transition-all shadow-lg group-hover:scale-110">
-                <i class="fas fa-store text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-0.5 relative group" data-view="tiendas">
+            <div class="w-7 h-7 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-cyan-500 group-hover:to-blue-500 transition-all shadow-md group-hover:scale-110">
+                <i class="fas fa-store text-gray-500 text-xs group-hover:text-white transition-colors"></i>
             </div>
-            <span class="text-xs text-gray-600 font-semibold mt-1 group-hover:text-cyan-600 transition-colors">Tiendas</span>
+            <span class="text-xs text-gray-600 font-semibold mt-0.5 group-hover:text-cyan-600 transition-colors">Tiendas</span>
         </a>
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="misPedidos">
-            <div class="w-9 h-9 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-purple-500 group-hover:to-pink-500 transition-all shadow-lg group-hover:scale-110">
-                <i class="fas fa-receipt text-gray-500 text-sm group-hover:text-white transition-colors"></i>
+        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-0.5 relative group" data-view="misPedidos">
+            <div class="w-7 h-7 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-purple-500 group-hover:to-pink-500 transition-all shadow-md group-hover:scale-110">
+                <i class="fas fa-receipt text-gray-500 text-xs group-hover:text-white transition-colors"></i>
             </div>
-            <span class="text-xs text-gray-600 font-semibold mt-1 group-hover:text-purple-600 transition-colors">Pedidos</span>
+            <span class="text-xs text-gray-600 font-semibold mt-0.5 group-hover:text-purple-600 transition-colors">Pedidos</span>
         </a>
     </nav>
     
@@ -203,39 +203,109 @@
                 nav.appendChild(connectionIndicator);
             }
 
-            // Pull-to-refresh en móviles
+            // Pull-to-refresh mejorado - Menos sensible y mejor UX
             let startY = 0;
             let pullDistance = 0;
+            let isRefreshing = false;
+            let touchStartTime = 0;
             const container = document.getElementById('app-container');
+            const PULL_THRESHOLD = 120; // Aumentado de 60 a 120px
+            const MIN_PULL_SPEED = 0.5; // Velocidad mínima requerida
             
             if (container) {
                 container.addEventListener('touchstart', (e) => {
-                    startY = e.touches[0].clientY;
-                });
+                    // Solo si estamos en el tope de la página
+                    if (window.scrollY === 0 && !isRefreshing) {
+                        startY = e.touches[0].clientY;
+                        touchStartTime = Date.now();
+                    }
+                }, { passive: true });
 
                 container.addEventListener('touchmove', (e) => {
+                    if (isRefreshing || startY === 0) return;
+                    
                     const currentY = e.touches[0].clientY;
                     pullDistance = currentY - startY;
+                    const touchDuration = Date.now() - touchStartTime;
+                    const pullSpeed = pullDistance / touchDuration;
                     
-                    if (pullDistance > 0 && window.scrollY === 0) {
-                        e.preventDefault();
-                        // Visual feedback para pull-to-refresh
-                        if (pullDistance > 60) {
-                            document.body.style.transform = `translateY(${Math.min(pullDistance * 0.3, 30)}px)`;
+                    // Solo activar si:
+                    // 1. Estamos en el tope de la página
+                    // 2. Movimiento hacia abajo
+                    // 3. Velocidad mínima de arrastre
+                    if (pullDistance > 20 && window.scrollY === 0 && pullSpeed > MIN_PULL_SPEED) {
+                        // Solo prevenir scroll si realmente queremos hacer pull-to-refresh
+                        if (pullDistance > 40) {
+                            e.preventDefault();
+                        }
+                        
+                        // Visual feedback más suave
+                        if (pullDistance > 80) {
+                            const progress = Math.min((pullDistance - 80) / (PULL_THRESHOLD - 80), 1);
+                            const translateY = Math.min(pullDistance * 0.2, 25);
+                            document.body.style.transform = `translateY(${translateY}px)`;
+                            document.body.style.transition = 'transform 0.1s ease-out';
+                            
+                            // Indicador visual de que se puede hacer refresh
+                            if (pullDistance > PULL_THRESHOLD) {
+                                document.body.style.filter = 'brightness(1.1)';
+                            }
                         }
                     }
-                });
+                }, { passive: false });
 
                 container.addEventListener('touchend', () => {
-                    if (pullDistance > 60 && window.scrollY === 0) {
-                        // Trigger refresh
-                        window.location.reload();
+                    if (isRefreshing) return;
+                    
+                    const touchDuration = Date.now() - touchStartTime;
+                    const pullSpeed = pullDistance / touchDuration;
+                    
+                    // Trigger refresh solo con condiciones estrictas
+                    if (pullDistance > PULL_THRESHOLD && 
+                        window.scrollY === 0 && 
+                        pullSpeed > MIN_PULL_SPEED &&
+                        touchDuration > 200) { // Mínimo 200ms de duración
+                        
+                        isRefreshing = true;
+                        
+                        // Feedback visual de carga
+                        document.body.style.transform = 'translateY(15px)';
+                        document.body.style.transition = 'transform 0.3s ease-out';
+                        document.body.style.filter = 'brightness(1.2)';
+                        
+                        // Mostrar indicador de carga
+                        const loadingIndicator = document.createElement('div');
+                        loadingIndicator.id = 'pull-refresh-loader';
+                        loadingIndicator.innerHTML = `
+                            <div class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg z-50 flex items-center">
+                                <svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Actualizando...
+                            </div>
+                        `;
+                        document.body.appendChild(loadingIndicator);
+                        
+                        // Delay antes del refresh para mejor UX
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 500);
                     }
                     
-                    // Reset transform
+                    // Reset suave
+                    document.body.style.transition = 'transform 0.3s ease-out, filter 0.3s ease-out';
                     document.body.style.transform = '';
-                    pullDistance = 0;
-                });
+                    document.body.style.filter = '';
+                    
+                    // Limpiar estado
+                    setTimeout(() => {
+                        document.body.style.transition = '';
+                        pullDistance = 0;
+                        startY = 0;
+                        touchStartTime = 0;
+                    }, 300);
+                }, { passive: true });
             }
         });
     </script>

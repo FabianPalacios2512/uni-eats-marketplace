@@ -20,7 +20,7 @@
 Agrega estas variables en Render:
 
 ```
-DATABASE_URL=jdbc:postgresql://db.lfvweearttrisbbhemld.supabase.co:5432/postgres
+DATABASE_URL=jdbc:postgresql://db.lfvweearttrisbbhemld.supabase.co:5432/postgres?sslmode=require
 DATABASE_USERNAME=postgres
 DATABASE_PASSWORD=F1001504182.ae
 SPRING_MAIL_USERNAME=tu_email@gmail.com

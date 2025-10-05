@@ -11,23 +11,35 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
-        body { font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: 'Poppins', sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden; /* Prevenir scroll horizontal */
+            max-width: 100vw; /* Limitar ancho máximo */
+        }
+        /* Prevenir scroll horizontal en todos los elementos */
+        * {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
         /* Ocultar scrollbars en carruseles */
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .nav-link.active i, .nav-link.active span { color: #4f46e5; /* indigo-600 */ }
-        .nav-link.active .w-8 { background: #4f46e5; /* indigo-600 */ }
+        /* Estilo para navegación activa con tema teal/emerald */
+        .nav-link.active i, .nav-link.active span { color: #14b8a6; /* teal-500 */ }
+        .nav-link.active .w-9 { background: linear-gradient(to right, #14b8a6, #10b981); /* teal-500 to emerald-500 */ }
         .skeleton { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; background-color: #e5e7eb; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; }
         .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
-        .qty-btn { width: 2.5rem; height: 2.5rem; border-radius: 9999px; background-color: #f1f5f9; font-weight: bold; font-size: 1.25rem; color: #4f46e5; }
+        .qty-btn { width: 2.5rem; height: 2.5rem; border-radius: 9999px; background-color: #f1f5f9; font-weight: bold; font-size: 1.25rem; color: #14b8a6; }
         .profile-link { display: flex; align-items: center; padding: 1rem; border-bottom-width: 1px; }
         .profile-link:hover { background-color: #f8fafc; }
         .profile-icon { width: 2rem; text-align: center; }
         .producto-card { display: flex; align-items: center; gap: 1rem; background-color: white; padding: 0.75rem; border-radius: 0.75rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }
-        .add-to-cart-btn { flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 9999px; background-color: #eef2ff; color: #4338ca; font-size: 1.25rem; font-weight: bold; transition: transform 0.1s; }
+        .add-to-cart-btn { flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 9999px; background-color: #ccfbf1; color: #0f766e; font-size: 1.25rem; font-weight: bold; transition: transform 0.1s; }
         .add-to-cart-btn:active { transform: scale(0.9); }
-        .cart-qty-btn { width: 2rem; height: 2rem; border-radius: 9999px; background-color: #f1f5f9; font-weight: bold; color: #4f46e5; }
+        .cart-qty-btn { width: 2rem; height: 2rem; border-radius: 9999px; background-color: #f1f5f9; font-weight: bold; color: #14b8a6; }
         @keyframes pop-in { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .animate-pop-in { animation: pop-in 0.3s ease-out forwards; }
         @keyframes slide-down { from { transform: translate(-50%, -100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
@@ -52,8 +64,8 @@
         
         /* Espacio para el contenido para que no se oculte detrás del nav */
         #app-container {
-            padding-bottom: 90px !important; /* Altura del nav + margen extra */
-            min-height: calc(100vh - 90px) !important;
+            padding-bottom: 75px !important; /* Altura del nav + margen extra */
+            min-height: calc(100vh - 75px) !important;
         }
         
         /* Ajuste del contenedor principal */
@@ -152,31 +164,24 @@
         <main id="app-container" class="px-1 pt-1"></main>
     </div>
 
-    <nav id="app-nav" class="flex justify-around shadow-lg py-2">
+    <nav id="app-nav" class="flex justify-around shadow-lg py-3 bg-white/95 backdrop-blur-xl">
         <a href="#" class="nav-link active flex flex-col items-center justify-center w-full py-1 relative group" data-view="inicio">
-            <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
-                <i class="fas fa-home text-white text-xs"></i>
+            <div class="w-9 h-9 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <i class="fas fa-home text-white text-sm"></i>
             </div>
-            <span class="text-xs text-indigo-600 font-medium mt-1 group-hover:text-indigo-700 transition-colors">Inicio</span>
+            <span class="text-xs text-teal-600 font-semibold mt-1 group-hover:text-teal-700 transition-colors">Inicio</span>
         </a>
         <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="tiendas">
-            <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-blue-600 transition-all shadow-md group-hover:scale-110">
-                <i class="fas fa-store text-gray-500 text-xs group-hover:text-white transition-colors"></i>
+            <div class="w-9 h-9 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-cyan-500 group-hover:to-blue-500 transition-all shadow-lg group-hover:scale-110">
+                <i class="fas fa-store text-gray-500 text-sm group-hover:text-white transition-colors"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-blue-600 transition-colors">Tiendas</span>
+            <span class="text-xs text-gray-600 font-semibold mt-1 group-hover:text-cyan-600 transition-colors">Tiendas</span>
         </a>
         <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="misPedidos">
-            <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-purple-600 transition-all shadow-md group-hover:scale-110">
-                <i class="fas fa-receipt text-gray-500 text-xs group-hover:text-white transition-colors"></i>
+            <div class="w-9 h-9 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-purple-500 group-hover:to-pink-500 transition-all shadow-lg group-hover:scale-110">
+                <i class="fas fa-receipt text-gray-500 text-sm group-hover:text-white transition-colors"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-purple-600 transition-colors">Pedidos</span>
-        </a>
-
-        <a href="#" class="nav-link flex flex-col items-center justify-center w-full py-1 relative group" data-view="perfil">
-            <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-600 transition-all shadow-md group-hover:scale-110">
-                <i class="fas fa-user text-gray-500 text-xs group-hover:text-white transition-colors"></i>
-            </div>
-            <span class="text-xs text-gray-600 font-medium mt-1 group-hover:text-emerald-600 transition-colors">Perfil</span>
+            <span class="text-xs text-gray-600 font-semibold mt-1 group-hover:text-purple-600 transition-colors">Pedidos</span>
         </a>
     </nav>
     

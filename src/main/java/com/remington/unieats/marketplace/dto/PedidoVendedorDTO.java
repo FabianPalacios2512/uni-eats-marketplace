@@ -12,6 +12,12 @@ public class PedidoVendedorDTO {
     private BigDecimal total;
     private String nombreComprador;
     private List<DetallePedidoVendedorDTO> detalles;
+    
+    // Nuevos campos para información de entrega y pago
+    private String tipoEntrega; // 'domicilio' o 'recoger'
+    private String tipoPago; // 'efectivo' o 'transferencia'
+    private String notasGenerales;
+    private String notasDomicilio;
 
     // Getters y Setters
     public Integer getId() { return id; }
@@ -27,11 +33,22 @@ public class PedidoVendedorDTO {
     public List<DetallePedidoVendedorDTO> getDetalles() { return detalles; }
     public void setDetalles(List<DetallePedidoVendedorDTO> detalles) { this.detalles = detalles; }
 
+    // Getters y Setters para información de entrega y pago
+    public String getTipoEntrega() { return tipoEntrega; }
+    public void setTipoEntrega(String tipoEntrega) { this.tipoEntrega = tipoEntrega; }
+    public String getTipoPago() { return tipoPago; }
+    public void setTipoPago(String tipoPago) { this.tipoPago = tipoPago; }
+    public String getNotasGenerales() { return notasGenerales; }
+    public void setNotasGenerales(String notasGenerales) { this.notasGenerales = notasGenerales; }
+    public String getNotasDomicilio() { return notasDomicilio; }
+    public void setNotasDomicilio(String notasDomicilio) { this.notasDomicilio = notasDomicilio; }
+
     // Clase interna para los detalles
     public static class DetallePedidoVendedorDTO {
         private String nombreProducto;
         private int cantidad;
         private BigDecimal precioUnitario;
+        private String opcionesSeleccionadas; // Lista de opciones como texto
 
         // Getters y Setters
         public String getNombreProducto() { return nombreProducto; }
@@ -40,5 +57,7 @@ public class PedidoVendedorDTO {
         public void setCantidad(int cantidad) { this.cantidad = cantidad; }
         public BigDecimal getPrecioUnitario() { return precioUnitario; }
         public void setPrecioUnitario(BigDecimal precioUnitario) { this.precioUnitario = precioUnitario; }
+        public String getOpcionesSeleccionadas() { return opcionesSeleccionadas; }
+        public void setOpcionesSeleccionadas(String opcionesSeleccionadas) { this.opcionesSeleccionadas = opcionesSeleccionadas; }
     }
 }

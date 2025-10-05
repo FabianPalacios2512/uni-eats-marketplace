@@ -6,6 +6,12 @@ public class PedidoDTO {
 
     private Integer tiendaId;
     private List<ItemPedidoDTO> items;
+    
+    // 🚛 Campos para entrega y pago
+    private String tipoEntrega; // 'domicilio' o 'recoger'
+    private String tipoPago; // 'efectivo' o 'transferencia'
+    private String notasGenerales;
+    private String notasDomicilio;
 
     // Getters y Setters
     public Integer getTiendaId() {
@@ -19,6 +25,32 @@ public class PedidoDTO {
     }
     public void setItems(List<ItemPedidoDTO> items) {
         this.items = items;
+    }
+
+    // 🚛 Getters y Setters para entrega y pago
+    public String getTipoEntrega() {
+        return tipoEntrega;
+    }
+    public void setTipoEntrega(String tipoEntrega) {
+        this.tipoEntrega = tipoEntrega;
+    }
+    public String getTipoPago() {
+        return tipoPago;
+    }
+    public void setTipoPago(String tipoPago) {
+        this.tipoPago = tipoPago;
+    }
+    public String getNotasGenerales() {
+        return notasGenerales;
+    }
+    public void setNotasGenerales(String notasGenerales) {
+        this.notasGenerales = notasGenerales;
+    }
+    public String getNotasDomicilio() {
+        return notasDomicilio;
+    }
+    public void setNotasDomicilio(String notasDomicilio) {
+        this.notasDomicilio = notasDomicilio;
     }
 
     // Clase interna para representar cada item del carrito

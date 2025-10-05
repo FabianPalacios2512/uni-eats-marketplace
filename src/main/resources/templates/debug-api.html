@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug API - Uni-Eats</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">🔍 Debug API Uni-Eats</h1>
+        
+        <div class="grid gap-6">
+            <!-- Test Tiendas -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-lg font-bold mb-4 text-teal-600">🏪 Test Tiendas</h2>
+                <button onclick="testTiendas()" class="bg-teal-500 text-white px-4 py-2 rounded hover:bg-teal-600">
+                    Obtener Tiendas
+                </button>
+                <div id="tiendasResult" class="mt-4 p-4 bg-gray-50 rounded min-h-20"></div>
+            </div>
+
+            <!-- Test Productos de Tienda -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-lg font-bold mb-4 text-emerald-600">📦 Test Productos de Tienda</h2>
+                <div class="flex gap-2 mb-4">
+                    <input type="number" id="tiendaId" placeholder="ID de Tienda" class="border px-3 py-2 rounded" value="1">
+                    <button onclick="testProductosTienda()" class="bg-emerald-500 text-white px-4 py-2 rounded hover:bg-emerald-600">
+                        Obtener Productos
+                    </button>
+                </div>
+                <div id="productosResult" class="mt-4 p-4 bg-gray-50 rounded min-h-20"></div>
+            </div>
+
+            <!-- Test JavaScript del Comprador -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-lg font-bold mb-4 text-purple-600">🛒 Test JavaScript Comprador</h2>
+                <button onclick="testCompradorJs()" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                    Test Navegación a Tienda
+                </button>
+                <div id="jsResult" class="mt-4 p-4 bg-gray-50 rounded min-h-20"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testTiendas() {
+            const result = document.getElementById('tiendasResult');
+            result.innerHTML = '<div class="text-blue-500">Cargando...</div>';
+            
+            try {
+                const response = await fetch('/api/marketplace/tiendas');
+                const data = await response.json();
+                result.innerHTML = `
+                    <div class="text-green-600 font-bold">✅ ${data.length} tiendas encontradas</div>
+                    <pre class="text-xs mt-2 overflow-auto">${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                result.innerHTML = `<div class="text-red-500">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testProductosTienda() {
+            const tiendaId = document.getElementById('tiendaId').value;
+            const result = document.getElementById('productosResult');
+            result.innerHTML = '<div class="text-blue-500">Cargando...</div>';
+            
+            try {
+                const response = await fetch(`/api/marketplace/productos/tienda/${tiendaId}`);
+                const data = await response.json();
+                result.innerHTML = `
+                    <div class="text-green-600 font-bold">✅ ${data.length} productos encontrados para tienda ${tiendaId}</div>
+                    <pre class="text-xs mt-2 overflow-auto">${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                result.innerHTML = `<div class="text-red-500">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        function testCompradorJs() {
+            const result = document.getElementById('jsResult');
+            result.innerHTML = `
+                <div class="text-blue-500">
+                    <p>🔗 <a href="/estudiante/dashboard" target="_blank" class="underline">Abrir Dashboard del Comprador</a></p>
+                    <p class="mt-2 text-sm">Instrucciones:</p>
+                    <ol class="text-sm mt-1 ml-4 list-decimal">
+                        <li>Ir a la sección "Tiendas"</li>
+                        <li>Hacer click en cualquier tienda</li>
+                        <li>Verificar si aparecen los productos</li>
+                        <li>Abrir DevTools para ver console.log</li>
+                    </ol>
+                </div>
+            `;
+        }
+
+        // Auto-test al cargar
+        window.onload = () => {
+            testTiendas();
+            testProductosTienda();
+        };
+    </script>
+</body>
+</html>

@@ -1,20 +1,29 @@
 package com.remington.unieats.marketplace.service;
 
-import com.remington.unieats.marketplace.dto.PedidoCompradorDTO;
-import com.remington.unieats.marketplace.dto.PedidoDTO;
-import com.remington.unieats.marketplace.model.entity.*;
-import com.remington.unieats.marketplace.model.enums.EstadoPedido;
-import com.remington.unieats.marketplace.model.repository.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.remington.unieats.marketplace.dto.PedidoCompradorDTO;
+import com.remington.unieats.marketplace.dto.PedidoDTO;
+import com.remington.unieats.marketplace.model.entity.DetallePedido;
+import com.remington.unieats.marketplace.model.entity.Opcion;
+import com.remington.unieats.marketplace.model.entity.Pedido;
+import com.remington.unieats.marketplace.model.entity.Producto;
+import com.remington.unieats.marketplace.model.entity.Tienda;
+import com.remington.unieats.marketplace.model.entity.Usuario;
+import com.remington.unieats.marketplace.model.enums.EstadoPedido;
+import com.remington.unieats.marketplace.model.repository.OpcionRepository;
+import com.remington.unieats.marketplace.model.repository.PedidoRepository;
+import com.remington.unieats.marketplace.model.repository.ProductoRepository;
+import com.remington.unieats.marketplace.model.repository.TiendaRepository;
 
 @Service
 public class PedidoServiceImpl implements PedidoService {
@@ -33,6 +42,12 @@ public class PedidoServiceImpl implements PedidoService {
         Pedido nuevoPedido = new Pedido();
         nuevoPedido.setComprador(comprador);
         nuevoPedido.setTienda(tienda);
+        
+        // 🚛 Asignar campos de entrega y pago
+        nuevoPedido.setTipoEntrega(pedidoDTO.getTipoEntrega() != null ? pedidoDTO.getTipoEntrega() : "domicilio");
+        nuevoPedido.setTipoPago(pedidoDTO.getTipoPago() != null ? pedidoDTO.getTipoPago() : "efectivo");
+        nuevoPedido.setNotasGenerales(pedidoDTO.getNotasGenerales());
+        nuevoPedido.setNotasDomicilio(pedidoDTO.getNotasDomicilio());
 
         List<DetallePedido> detalles = new ArrayList<>();
         BigDecimal totalPedido = BigDecimal.ZERO;

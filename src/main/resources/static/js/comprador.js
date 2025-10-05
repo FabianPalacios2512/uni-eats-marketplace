@@ -1,18 +1,62 @@
 /**
  * @file Script principal para la App de Compradores de Uni-Eats.
- * @description Gestiona las vistas, el estado y la         case 'inicio': return `<div class="relative w-full px-4 py-4">
-        <div class="relative">
-            <input type="search" placeholder="Buscar comida deliciosa..." class="w-full bg-white/80 backdrop-blur-md placeholder-gray-400 text-gray-800 border-2 border-transparent rounded-2xl py-4 pl-12 pr-16 text-sm focus:outline-none focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-100 transition-all duration-300 shadow-xl shadow-orange-100/50">
-            <div class="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 bg-gradient-to-r from-orange-400 to-red-500 rounded-lg flex items-center justify-center">
-                <i class="fas fa-search text-white text-xs"></i>
+ * @description Gestiona las vistas, el estado y la         case 'inicio': return `
+    <!-- Header con búsqueda rediseñada -->
+    <div class="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 px-4 py-6 rounded-b-3xl shadow-xl">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                <i class="fas fa-utensils text-white text-lg"></i>
             </div>
-            <button class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                <i class="fas fa-sliders-h text-white text-xs"></i>
+            <div class="flex-1">
+                <h1 class="text-white font-bold text-lg">Uni-Eats</h1>
+                <p class="text-white/80 text-sm">¡Descubre sabores increíbles!</p>
+            </div>
+            <button class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                <i class="fas fa-bell text-white"></i>
             </button>
+        </div>
+        
+        <!-- Barra de búsqueda moderna -->
+        <div class="relative">
+            <input type="search" placeholder="¿Qué se te antoja hoy?" class="w-full bg-white/95 backdrop-blur-md placeholder-gray-500 text-gray-800 border-0 rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg">
+            <div class="absolute left-4 top-1/2 -translate-y-1/2">
+                <i class="fas fa-search text-gray-400 text-sm"></i>
+            </div>
         </div>
     </div>`;ca de la PWA del comprador.
  * @version Pro Final 2.0 (Flujo de Compra Detallado)
  */
+
+// 🎨 Helper functions para logos de tiendas
+function getTiendaLogoHTML(tienda) {
+    console.log('🔍 Debug getTiendaLogoHTML:', tienda.nombre, 'logoUrl:', tienda.logoUrl);
+    
+    // Si tiene logoUrl válido, intentar mostrar la imagen
+    if (tienda.logoUrl && tienda.logoUrl.trim() !== '') {
+        return `<img src="${tienda.logoUrl}" 
+                    alt="${tienda.nombre}" 
+                    class="w-full h-full object-cover"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'; console.log('❌ Error loading logo for ${tienda.nombre}:', '${tienda.logoUrl}');">
+                <div class="w-full h-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center text-white font-bold text-sm" style="display: none;">
+                    ${getInitials(tienda.nombre)}
+                </div>`;
+    } else {
+        console.log('⚠️ No logoUrl for:', tienda.nombre);
+        // Fallback directo a iniciales
+        return `<div class="w-full h-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center text-white font-bold text-sm">
+                    ${getInitials(tienda.nombre)}
+                </div>`;
+    }
+}
+
+function getInitials(nombre) {
+    if (!nombre) return '?';
+    return nombre.split(' ')
+                .map(word => word.charAt(0).toUpperCase())
+                .slice(0, 2)
+                .join('');
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     
     // --- Módulos Principales de la Aplicación ---
@@ -28,6 +72,11 @@ document.addEventListener("DOMContentLoaded", () => {
         carrito: [],
         csrfToken: document.querySelector("meta[name='_csrf']")?.getAttribute("content"),
         csrfHeader: document.querySelector("meta[name='_csrf_header']")?.getAttribute("content"),
+        // Opciones de entrega y pago
+        tipoEntrega: 'recoger', // 'domicilio' o 'recoger' - por defecto recoger
+        tipoPago: 'transferencia', // 'efectivo' o 'transferencia' - por defecto transferencia
+        notasGenerales: '',
+        notasDomicilio: '',
         // Nuevo sistema de caché y notificaciones
         pedidosCache: {
             data: null,
@@ -397,6 +446,75 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
+    // 🛒💾 Sistema de Persistencia del Carrito
+    const CarritoPersistente = {
+        // Guardar todo el estado del carrito en localStorage
+        guardar() {
+            const carritoData = {
+                carrito: State.carrito,
+                tipoEntrega: State.tipoEntrega,
+                tipoPago: State.tipoPago,
+                notasGenerales: State.notasGenerales,
+                notasDomicilio: State.notasDomicilio,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('unieats_carrito', JSON.stringify(carritoData));
+            console.log('🛒💾 Carrito guardado en localStorage:', carritoData);
+        },
+
+        // Cargar estado del carrito desde localStorage
+        cargar() {
+            try {
+                const carritoData = localStorage.getItem('unieats_carrito');
+                if (carritoData) {
+                    const data = JSON.parse(carritoData);
+                    
+                    // Verificar que los datos no sean muy antiguos (máximo 24 horas)
+                    const ahora = Date.now();
+                    const tiempoLimite = 24 * 60 * 60 * 1000; // 24 horas
+                    
+                    if (data.timestamp && (ahora - data.timestamp) < tiempoLimite) {
+                        State.carrito = data.carrito || [];
+                        State.tipoEntrega = data.tipoEntrega || 'recoger';
+                        State.tipoPago = data.tipoPago || 'transferencia';
+                        State.notasGenerales = data.notasGenerales || '';
+                        State.notasDomicilio = data.notasDomicilio || '';
+                        
+                        console.log('🛒📦 Carrito cargado desde localStorage:', data);
+                        
+                        // Actualizar contador si hay items
+                        if (State.carrito.length > 0) {
+                            setTimeout(() => {
+                                if (typeof NotificationSystem !== 'undefined') {
+                                    NotificationSystem.show(
+                                        `🛒 Carrito recuperado: ${State.carrito.length} producto${State.carrito.length !== 1 ? 's' : ''}`,
+                                        'info',
+                                        3000
+                                    );
+                                }
+                            }, 1000);
+                        }
+                        return true;
+                    } else {
+                        // Datos muy antiguos, limpiar
+                        this.limpiar();
+                        console.log('🛒🕐 Carrito expirado, limpiado');
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error al cargar carrito desde localStorage:', error);
+                this.limpiar();
+            }
+            return false;
+        },
+
+        // Limpiar carrito del localStorage
+        limpiar() {
+            localStorage.removeItem('unieats_carrito');
+            console.log('🛒🧹 Carrito limpiado del localStorage');
+        }
+    };
+
     // 🔄 Sistema de Polling Inteligente
     const SmartPolling = {
         start() {
@@ -750,6 +868,87 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Módulo para renderizar todas las vistas y componentes
     const Views = {
+        navigationHistory: ['inicio'],
+        
+        // Configurar manejo del historial del navegador
+        setupHistoryManagement() {
+            // Interceptar el botón de retroceso del navegador
+            window.addEventListener('popstate', (event) => {
+                event.preventDefault();
+                this.handleBrowserBack();
+            });
+            
+            // Prevenir que el botón atrás vaya al login
+            history.replaceState({ view: 'inicio' }, 'Inicio', '#inicio');
+        },
+
+        // Manejar navegación hacia atrás
+        handleBrowserBack() {
+            // Remover vista actual del historial
+            if (this.navigationHistory.length > 1) {
+                this.navigationHistory.pop();
+                const previousView = this.navigationHistory[this.navigationHistory.length - 1];
+                
+                // Navegar a la vista anterior sin agregar al historial
+                this.navigateWithoutHistory(previousView);
+            } else {
+                // Si no hay historial, ir a inicio
+                this.render('inicio');
+            }
+        },
+
+        // Navegar sin agregar al historial (para botón atrás)
+        navigateWithoutHistory(view, params = null) {
+            State.vistaActual = view;
+            this.render(view, params);
+        },
+
+        // Actualizar URL del navegador sin recargar página
+        updateBrowserURL(view, params) {
+            let url = `#${view}`;
+            
+            switch (view) {
+                case 'productosTienda':
+                    if (params && params.tiendaId) {
+                        url = `#tienda/${params.tiendaId}`;
+                    }
+                    break;
+                case 'detalleProducto':
+                    if (params && params.id) {
+                        url = `#producto/${params.id}`;
+                    }
+                    break;
+            }
+            
+            history.pushState({ view, params }, '', url);
+        },
+
+        // Método para mostrar errores amigables con opciones de navegación
+        getErrorHTML(title, message, actions = []) {
+            const defaultActions = [
+                { text: '🏠 Ir a Inicio', view: 'inicio', icon: 'fas fa-home' }
+            ];
+            const allActions = actions.length > 0 ? actions : defaultActions;
+            
+            return `
+                <div class="flex flex-col items-center justify-center py-16 px-4">
+                    <div class="w-24 h-24 bg-gradient-to-br from-red-100 to-orange-100 rounded-full flex items-center justify-center mb-6">
+                        <i class="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">${title}</h3>
+                    <p class="text-gray-500 text-center mb-6">${message}</p>
+                    <div class="flex gap-3 flex-wrap justify-center">
+                        ${allActions.map(action => `
+                            <button class="bg-gradient-to-r from-teal-500 to-emerald-500 text-white px-6 py-2 rounded-lg font-medium hover:from-teal-600 hover:to-emerald-600 transition-all" 
+                                    data-action="navigate" data-view="${action.view}">
+                                <i class="${action.icon} mr-2"></i>${action.text}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        },
+
         formatPrice: (price, sign = true) => {
             if (price === 0 && sign) return 'Gratis';
             const prefix = sign && price > 0 ? '+ ' : '';
@@ -844,6 +1043,14 @@ document.addEventListener("DOMContentLoaded", () => {
         async render(view, params = null) {
             State.vistaActual = view;
             
+            // Agregar al historial de navegación
+            if (this.navigationHistory[this.navigationHistory.length - 1] !== view) {
+                this.navigationHistory.push(view);
+            }
+            
+            // Actualizar URL del navegador
+            this.updateBrowserURL(view, params);
+            
             // Persistir vista actual (excepto para vista de producto específico)
             if (!['producto'].includes(view)) {
                 localStorage.setItem('uni-eats-vista', view);
@@ -866,10 +1073,23 @@ document.addEventListener("DOMContentLoaded", () => {
                         Header.innerHTML = this.getHeaderHTML('inicio');
                         const tiendas = await Api.getTiendas();
                         const productos = await Api.getProductos();
-                        Container.innerHTML =
-                            this.getCarouselTiendasHTML(tiendas) +
+                        
+                        // Agrupar productos por tienda
+                        const productosPorTienda = {};
+                        productos.forEach(producto => {
+                            const tiendaNombre = producto.tienda.nombre;
+                            if (!productosPorTienda[tiendaNombre]) {
+                                productosPorTienda[tiendaNombre] = {
+                                    tienda: producto.tienda,
+                                    productos: []
+                                };
+                            }
+                            productosPorTienda[tiendaNombre].productos.push(producto);
+                        });
+                        
+                        Container.innerHTML = 
                             this.getCategoryBarHTML() +
-                            this.getSmallProductGridHTML(productos);
+                            this.getProductosPorTiendaHTML(productosPorTienda);
                         break;
                     case 'tiendas':
                         Header.innerHTML = this.getHeaderHTML('tiendas');
@@ -877,27 +1097,112 @@ document.addEventListener("DOMContentLoaded", () => {
                         Container.innerHTML = this.getListaTiendasHTML(tiendasList);
                         break;
                     case 'productosTienda':
-                        const tienda = await Api.getTienda(params.tiendaId);
-                        const productosDeTrienda = await Api.getProductosDeTienda(params.tiendaId);
+                        console.log('🏪 Navegando a productos de tienda');
+                        console.log('📋 Params recibidos:', params);
+                        console.log('🆔 tiendaId:', params?.tiendaId || params?.id);
+                        
+                        // Validar que se especificó la tienda
+                        if (!params || (!params.tiendaId && !params.id)) {
+                            console.error('❌ No se especificó tiendaId');
+                            Container.innerHTML = this.getErrorHTML(
+                                'No se especificó la tienda',
+                                'Esto puede pasar si refrescaste la página.',
+                                [
+                                    { text: '🏪 Ver Tiendas', view: 'tiendas', icon: 'fas fa-store' },
+                                    { text: '🏠 Ir a Inicio', view: 'inicio', icon: 'fas fa-home' }
+                                ]
+                            );
+                            return;
+                        }
+                        const tiendaIdFinal = params?.tiendaId || params?.id;
+                        if (!tiendaIdFinal) {
+                            console.error('❌ No se recibió tiendaId');
+                            Container.innerHTML = '<div class="p-8 text-center text-red-500">Error: No se especificó la tienda</div>';
+                            return;
+                        }
+                        
+                        console.log('🔍 Obteniendo datos de la tienda:', tiendaIdFinal);
+                        const tienda = await Api.getTienda(tiendaIdFinal);
+                        console.log('🏪 Tienda obtenida:', tienda);
+                        
+                        const productosDeTienda = await Api.getProductosDeTienda(tiendaIdFinal);
+                        console.log('📦 Productos obtenidos:', productosDeTienda?.length || 0);
+                        console.log('📋 Lista de productos:', productosDeTienda);
+                        
                         State.tiendaActual = tienda;
                         Header.innerHTML = this.getHeaderHTML('productosTienda', tienda);
-                        Container.innerHTML = this.getProductosTiendaHTML(productosDeTrienda, tienda);
+                        Container.innerHTML = this.getProductosTiendaHTML(productosDeTienda, tienda);
                         break;
                     case 'perfil':
                         Header.innerHTML = this.getHeaderHTML('perfil');
                         Container.innerHTML = this.getPerfilHTML();
                         break;
                     case 'detalleProducto':
-                        const producto = await Api.getProductoDetalle(params.id);
-                        State.productoSeleccionado = producto;
-                        Header.innerHTML = this.getHeaderHTML('detalleProducto', producto);
-                        Container.innerHTML = this.getDetalleProductoHTML(producto);
-                        this.updateTotalProducto();
+                        // Validar que se especificó el producto
+                        if (!params || !params.id) {
+                            console.error('❌ No se especificó el ID del producto');
+                            Container.innerHTML = this.getErrorHTML(
+                                'Producto no encontrado',
+                                'No se especificó qué producto quieres ver.<br>Esto puede pasar si refrescaste la página.',
+                                [
+                                    { text: '🏠 Ir a Inicio', view: 'inicio', icon: 'fas fa-home' },
+                                    { text: '🏪 Ver Tiendas', view: 'tiendas', icon: 'fas fa-store' }
+                                ]
+                            );
+                            return;
+                        }
+
+                        try {
+                            const producto = await Api.getProductoDetalle(params.id);
+                            if (!producto) {
+                                Container.innerHTML = this.getErrorHTML(
+                                    'Producto no encontrado',
+                                    'El producto que buscas no existe o fue eliminado.<br>Esto puede pasar si refrescaste la página.',
+                                    [
+                                        { text: '🏠 Ir a Inicio', view: 'inicio', icon: 'fas fa-home' },
+                                        { text: '🏪 Ver Tiendas', view: 'tiendas', icon: 'fas fa-store' }
+                                    ]
+                                );
+                                return;
+                            }
+                            State.productoSeleccionado = producto;
+                            Header.innerHTML = this.getHeaderHTML('detalleProducto', producto);
+                            Container.innerHTML = this.getDetalleProductoHTML(producto);
+                            this.updateTotalProducto();
+                        } catch (error) {
+                            console.error('❌ Error cargando producto:', error);
+                            Container.innerHTML = this.getErrorHTML(
+                                'Error cargando producto',
+                                'Hubo un problema al cargar el producto.<br>Por favor, intenta nuevamente.',
+                                [
+                                    { text: '🏠 Ir a Inicio', view: 'inicio', icon: 'fas fa-home' },
+                                    { text: '🏪 Ver Tiendas', view: 'tiendas', icon: 'fas fa-store' }
+                                ]
+                            );
+                        }
                         break;
                     case 'carrito':
                         Header.innerHTML = this.getHeaderHTML('carrito');
                         Container.innerHTML = this.getCarritoHTML();
                         this.renderFloatingCartButton(true);
+                        
+                        // 📝 Configurar event listeners para campos de texto
+                        setTimeout(() => {
+                            const notasGeneralesField = document.querySelector('[data-action="change-notas-generales"]');
+                            const notasDomicilioField = document.querySelector('[data-action="change-notas-domicilio"]');
+                            
+                            if (notasGeneralesField) {
+                                notasGeneralesField.addEventListener('input', (e) => {
+                                    AppController.cambiarNotasGenerales(e.target.value);
+                                });
+                            }
+                            
+                            if (notasDomicilioField) {
+                                notasDomicilioField.addEventListener('input', (e) => {
+                                    AppController.cambiarNotasDomicilio(e.target.value);
+                                });
+                            }
+                        }, 100);
                         break;
                     case 'misPedidos':
                         Header.innerHTML = this.getHeaderHTML('misPedidos');
@@ -947,84 +1252,77 @@ document.addEventListener("DOMContentLoaded", () => {
             
             switch (view) {
                 case 'inicio': return `
-                    <div class="relative bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white overflow-hidden">
-                        <!-- Elementos decorativos más sutiles -->
-                        <div class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-12 translate-x-12"></div>
-                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-white/10 rounded-full translate-y-10 -translate-x-10"></div>
-                        
-                        <div class="relative z-10 px-3 py-3">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-3">
-                                    <div class="relative">
-                                        <div class="w-9 h-9 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-lg">
-                                            <i class="fas fa-utensils text-white text-sm"></i>
-                                        </div>
-                                        <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                                    </div>
-                                    <div>
-                                        <h1 class="text-lg font-black tracking-tight bg-gradient-to-r from-white to-indigo-100 bg-clip-text text-transparent">Uni-Eats</h1>
-                                        <p class="text-indigo-200 text-xs font-medium">🎓 Comida universitaria</p>
-                                    </div>
+                    <div class="bg-gradient-to-r from-teal-500 to-emerald-600 text-white p-3 shadow-lg">
+                        <!-- Header Principal -->
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 bg-white rounded-full flex items-center justify-center">
+                                    <span class="text-teal-600 font-bold text-base">🍽️</span>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <button class="relative w-8 h-8 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="perfil">
-                                        <i class="fas fa-user text-white text-xs group-hover:scale-110 transition-transform"></i>
+                                <div>
+                                    <h1 class="text-lg font-bold">UniEats</h1>
+                                    <p class="text-teal-100 text-xs">Tu marketplace universitario</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button class="p-2 bg-teal-600 rounded-full hover:bg-teal-700 transition-colors" data-action="navigate" data-view="perfil">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                    </svg>
+                                </button>
+                                ${State.carrito.length > 0 ? `
+                                    <button class="p-2 bg-teal-600 rounded-full hover:bg-teal-700 transition-colors relative" data-action="navigate" data-view="carrito">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.5 7.5h12"></path>
+                                        </svg>
+                                        <span class="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full w-4 h-4 flex items-center justify-center text-xs">${State.carrito.length}</span>
                                     </button>
-                                    ${State.carrito.length > 0 ? `
-                                        <button class="relative w-8 h-8 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/20 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
-                                            <i class="fas fa-shopping-cart text-white text-xs group-hover:scale-110 transition-transform"></i>
-                                            <span class="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-bounce border border-white">${State.carrito.length}</span>
-                                        </button>
-                                    ` : ''}
-                                </div>
+                                ` : ''}
                             </div>
-                            
-                            <!-- Barra de búsqueda más compacta -->
-                            <div class="relative mt-3">
-                                <div class="relative bg-white/95 backdrop-blur-xl rounded-xl shadow-lg border border-white/30">
-                                    <div class="flex items-center px-1">
-                                        <div class="flex-1 relative">
-                                            <input type="search" placeholder="Buscar comida..." class="w-full bg-transparent placeholder-slate-400 text-slate-800 border-0 rounded-xl py-2 pl-4 pr-3 text-sm focus:outline-none">
-                                            <div class="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping"></div>
-                                        </div>
-                                        <button class="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300 group">
-                                            <i class="fas fa-search text-white text-xs group-hover:rotate-12 transition-transform"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                        </div>
+                        
+                        <!-- Barra de búsqueda -->
+                        <div class="relative">
+                            <input type="text" 
+                                   id="searchInput" 
+                                   placeholder="Buscar productos, tiendas..." 
+                                   class="w-full pl-9 pr-4 py-2.5 bg-white rounded-xl text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white shadow-sm text-sm">
+                            <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
                         </div>
                     </div>`;
                     
                 case 'productosTienda': return `
-                    <div class="relative bg-gradient-to-br from-purple-600 to-pink-600 text-white overflow-hidden">
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
-                        <div class="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-12 -translate-x-12"></div>
+                    <div class="relative bg-gradient-to-br from-teal-600 to-emerald-600 text-white overflow-hidden">
+                        <div class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-12 translate-x-12"></div>
+                        <div class="absolute bottom-0 left-0 w-16 h-16 bg-white/10 rounded-full translate-y-8 -translate-x-8"></div>
                         
-                        <div class="relative z-10 px-3 py-3">
-                            <div class="flex items-center justify-between">
+                        <div class="relative z-10 px-4 py-3">
+                            <div class="flex items-center justify-between mb-3">
                                 <div class="flex items-center gap-3">
-                                    <button class="w-8 h-8 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/30 transition-all duration-300" data-action="navigate" data-view="tiendas">
+                                    <button class="w-9 h-9 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/30 transition-all duration-300" 
+                                            data-action="navigate" data-view="tiendas">
                                         <i class="fas fa-arrow-left text-white text-sm"></i>
                                     </button>
                                     <div class="flex items-center gap-3">
-                                        <div class="relative">
-                                            <div class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-xl">
-                                                <i class="fas fa-utensils text-white text-sm"></i>
-                                            </div>
-                                            <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                                        <div class="w-12 h-12 rounded-xl overflow-hidden bg-white/20 backdrop-blur-md border border-white/30">
+                                            ${data ? getTiendaLogoHTML(data) : '<div class="w-full h-full bg-white/30 flex items-center justify-center"><i class="fas fa-store text-white"></i></div>'}
                                         </div>
                                         <div>
-                                            <h1 class="text-lg font-bold bg-gradient-to-r from-white to-purple-100 bg-clip-text text-transparent">${data?.nombre || 'Tienda'}</h1>
-                                            <p class="text-purple-200 text-xs">🍽️ Menú disponible</p>
+                                            <h1 class="text-lg font-bold">${data ? data.nombre : 'Tienda'}</h1>
+                                            <p class="text-white/80 text-xs">${data ? data.descripcion : 'Productos disponibles'}</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center space-x-2">
                                     ${State.carrito.length > 0 ? `
-                                        <button class="relative w-8 h-8 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
-                                            <i class="fas fa-shopping-cart text-white text-xs group-hover:scale-110 transition-transform"></i>
-                                            <span class="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-bounce border border-white">${State.carrito.length}</span>
+                                        <button class="p-2 bg-white/20 backdrop-blur-md rounded-xl hover:bg-white/30 transition-all relative" 
+                                                data-action="navigate" data-view="carrito">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.5 7.5h12"></path>
+                                            </svg>
+                                            <span class="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full w-4 h-4 flex items-center justify-center text-xs">${State.carrito.length}</span>
                                         </button>
                                     ` : ''}
                                 </div>
@@ -1033,22 +1331,26 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>`;
                     
                 case 'tiendas': return `
-                    <div class="relative bg-blue-600 text-white overflow-hidden">
-                        <div class="absolute top-0 right-0 w-28 h-28 bg-blue-500 rounded-full opacity-20 -translate-y-14 translate-x-14"></div>
-                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-cyan-400 rounded-full opacity-25 translate-y-10 -translate-x-10"></div>
-                        
-                        <div class="relative z-10 px-4 py-4">
-                            <div class="flex items-center gap-4">
-                                <div class="relative">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-xl transform -rotate-2 hover:rotate-0 transition-transform duration-300">
-                                        <i class="fas fa-store text-white text-xl"></i>
-                                    </div>
-                                    <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-cyan-400 rounded-full"></div>
+                    <div class="bg-gradient-to-r from-teal-500 to-emerald-600 text-white p-3 shadow-lg">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 bg-white rounded-full flex items-center justify-center">
+                                    <span class="text-teal-600 font-bold text-base">🏪</span>
                                 </div>
-                                <div class="flex-1">
-                                    <h1 class="text-2xl font-black bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">Tiendas</h1>
-                                    <p class="text-blue-200 text-sm">🏪 Descubre sabores únicos</p>
+                                <div>
+                                    <h1 class="text-lg font-bold">Tiendas</h1>
+                                    <p class="text-teal-100 text-xs">Explora nuestras tiendas</p>
                                 </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                ${State.carrito.length > 0 ? `
+                                    <button class="p-2 bg-teal-600 rounded-full hover:bg-teal-700 transition-colors relative" data-action="navigate" data-view="carrito">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.5 7.5h12"></path>
+                                        </svg>
+                                        <span class="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full w-4 h-4 flex items-center justify-center text-xs">${State.carrito.length}</span>
+                                    </button>
+                                ` : ''}
                             </div>
                         </div>
                     </div>`;
@@ -1125,31 +1427,33 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>`;
                     
                 case 'detalleProducto': return `
-                    <div class="relative bg-rose-600 text-white overflow-hidden">
-                        <div class="absolute top-0 right-0 w-28 h-28 bg-rose-500 rounded-full opacity-20 -translate-y-14 translate-x-14"></div>
-                        <div class="absolute bottom-0 left-0 w-20 h-20 bg-pink-400 rounded-full opacity-25 translate-y-10 -translate-x-10"></div>
+                    <div class="relative bg-gradient-to-r from-teal-500 to-emerald-500 text-white mb-3">
+                        <!-- Elementos decorativos sutiles -->
+                        <div class="absolute top-0 right-0 w-16 h-16 bg-emerald-400 rounded-full opacity-20 -translate-y-8 translate-x-8"></div>
+                        <div class="absolute bottom-0 left-0 w-12 h-12 bg-teal-300 rounded-full opacity-25 translate-y-6 -translate-x-6"></div>
                         
-                        <div class="relative z-10 px-4 py-4">
-                            <div class="flex items-center gap-3">
-                                <button class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20 nav-back-btn" data-action="navigate" data-view="${backViewTarget}" data-id="${State.tiendaActual?.id}">
-                                    <i class="fas fa-arrow-left text-white text-sm group-hover:scale-110 transition-transform"></i>
+                        <div class="relative z-10 px-4 py-3">
+                            <div class="flex items-center justify-between">
+                                <!-- Botón de regreso compacto -->
+                                <button class="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center hover:bg-white/30 transition-all duration-200 nav-back-btn" data-action="navigate" data-view="${backViewTarget}" data-id="${State.tiendaActual?.id}">
+                                    <i class="fas fa-arrow-left text-white text-sm"></i>
                                 </button>
-                                <div class="relative">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-pink-400 to-rose-600 rounded-2xl flex items-center justify-center shadow-xl transform -rotate-2 hover:rotate-0 transition-transform duration-300">
-                                        <i class="fas fa-hamburger text-white text-xl"></i>
-                                    </div>
-                                    <div class="absolute -top-1 -left-1 w-4 h-4 bg-yellow-400 rounded-full animate-bounce"></div>
+                                
+                                <!-- Mensaje central compacto -->
+                                <div class="flex-1 text-center mx-3">
+                                    <h1 class="text-lg font-bold text-white">Personaliza tu pedido</h1>
+                                    <p class="text-emerald-100 text-xs">Ajusta todo a tu gusto</p>
                                 </div>
-                                <div class="flex-1 min-w-0">
-                                    <h1 class="text-xl font-black truncate bg-gradient-to-r from-white to-rose-100 bg-clip-text text-transparent">${data.nombre}</h1>
-                                    <p class="text-rose-200 text-sm">🎨 Personaliza tu antojo</p>
-                                </div>
+                                
+                                <!-- Carrito si tiene items -->
                                 ${State.carrito.length > 0 ? `
-                                    <button class="relative w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center hover:bg-white/30 transition-all duration-300 group border border-white/20" data-action="navigate" data-view="carrito">
-                                        <i class="fas fa-shopping-cart text-white text-sm group-hover:scale-110 transition-transform"></i>
-                                        <span class="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-orange-400 to-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-bounce border-2 border-white">${State.carrito.length}</span>
+                                    <button class="relative w-9 h-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center hover:bg-white/30 transition-all duration-200" data-action="navigate" data-view="carrito">
+                                        <i class="fas fa-shopping-cart text-white text-sm"></i>
+                                        <span class="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center">${State.carrito.length}</span>
                                     </button>
-                                ` : ''}
+                                ` : `
+                                    <div class="w-9 h-9"></div>
+                                `}
                             </div>
                         </div>
                     </div>`;
@@ -1163,36 +1467,97 @@ document.addEventListener("DOMContentLoaded", () => {
             const categorias = { "Novedades para ti": productos };
             let html = '';
             for (const [nombreCat, prodsCat] of Object.entries(categorias)) {
-                html += `<h2 class="text-lg font-bold text-slate-700 mt-4 mb-2">${nombreCat}</h2><div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                html += `<h2 class="text-lg font-bold text-slate-700 mt-4 mb-3 px-3">${nombreCat}</h2>
+                <div class="px-3">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                         ${prodsCat.map(p => `
-                            <div class="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer transform transition duration-200 hover:scale-105" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
-                            <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk3YTNiNCI+8J+NvUNvbWlkYTwvdGV4dD48L3N2Zz4='" class="w-full h-24 object-cover">
-                            <div class="p-3"><h3 class="font-semibold text-sm text-slate-800 truncate">${p.nombre}</h3><p class="text-xs text-slate-500">${p.tienda.nombre}</p><p class="font-bold text-indigo-600 mt-1">${this.formatPrice(p.precio, false)}</p></div>
-                        </div>`).join('')}
+                            <div class="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer transform transition duration-200 hover:scale-105 border border-gray-100" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
+                                <div class="relative">
+                                    <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk3YTNiNCI+🍽️</text></svg>'" class="w-full h-20 object-cover">
+                                    <!-- Botón + en la esquina superior derecha -->
+                                    <button class="absolute top-1.5 right-1.5 w-6 h-6 bg-teal-500 hover:bg-teal-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors" onclick="event.stopPropagation()">
+                                        <i class="fas fa-plus text-xs"></i>
+                                    </button>
+                                </div>
+                                <div class="p-2.5">
+                                    <h3 class="font-semibold text-xs text-slate-800 truncate leading-tight">${p.nombre}</h3>
+                                    <p class="text-xs text-slate-500 truncate">${p.tienda.nombre}</p>
+                                    <p class="font-bold text-teal-600 mt-1 text-sm">${this.formatPrice(p.precio, false)}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>`;
             }
             return html;
         },
 
         getListaTiendasHTML(tiendas) {
-            return tiendas.map(tienda => `
-                <div class="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm mb-3 cursor-pointer" data-action="navigate" data-view="tiendas" data-id="${tienda.id}">
-                    <img src="${tienda.logoUrl}" class="w-16 h-16 rounded-full object-cover">
-                    <div class="flex-grow"><h3 class="font-bold text-slate-800">${tienda.nombre}</h3><p class="text-sm text-slate-500 line-clamp-2">${tienda.descripcion}</p></div>
-                    <i class="fas fa-chevron-right text-slate-300"></i>
-                </div>`).join('');
+            if (!tiendas || tiendas.length === 0) {
+                return `
+                    <div class="flex flex-col items-center justify-center py-16 px-4">
+                        <div class="w-24 h-24 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-full flex items-center justify-center mb-6">
+                            <i class="fas fa-store text-3xl text-teal-500"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">No hay tiendas disponibles</h3>
+                        <p class="text-gray-500 text-center">Las tiendas estarán disponibles pronto</p>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="p-4 space-y-4">
+                    ${tiendas.map(tienda => `
+                        <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl" 
+                             data-action="navigate" data-view="productosTienda" data-tienda-id="${tienda.id}">
+                            <div class="p-4">
+                                <div class="flex items-center gap-4">
+                                    <!-- Logo de la tienda -->
+                                    <div class="w-16 h-16 rounded-2xl overflow-hidden bg-gradient-to-br from-teal-100 to-emerald-100 flex-shrink-0 border-2 border-teal-200">
+                                        ${getTiendaLogoHTML(tienda)}
+                                    </div>
+                                    
+                                    <!-- Info de la tienda -->
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-lg text-gray-900 mb-1 truncate">${tienda.nombre}</h3>
+                                        <p class="text-gray-600 text-sm line-clamp-2 mb-2">${tienda.descripcion || 'Deliciosa comida te espera'}</p>
+                                        
+                                        <!-- Estado y rating -->
+                                        <div class="flex items-center gap-3">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                                                <span class="w-2 h-2 bg-emerald-400 rounded-full mr-1.5"></span>
+                                                Abierto
+                                            </span>
+                                            <div class="flex items-center gap-1">
+                                                <i class="fas fa-star text-yellow-400 text-xs"></i>
+                                                <span class="text-sm text-gray-600 font-medium">4.8</span>
+                                                <span class="text-xs text-gray-400">(120+)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Flecha -->
+                                    <div class="w-8 h-8 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-chevron-right text-teal-500 text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
         },
 
         getDetalleProductoHTML(producto) {
             let opcionesHtml = producto.categoriasDeOpciones.map(cat => `
-                <div class="mb-4">
-                    <h3 class="font-bold text-lg mb-3 text-gray-800">${cat.nombre}</h3>
+                <div class="mb-3">
+                    <h3 class="font-bold text-base mb-2 text-gray-800">${cat.nombre}</h3>
                     <div class="space-y-2">
                         ${cat.opciones.map(op => `
-                            <label class="flex items-center bg-gray-50 p-3 rounded-xl border border-gray-100 hover:bg-purple-50 hover:border-purple-200 transition-all cursor-pointer">
-                                <input type="checkbox" class="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 border-gray-300" name="${cat.id}" value="${op.id}" data-precio="${op.precioAdicional}" data-nombre="${op.nombre}">
-                                <span class="ml-3 text-gray-700 flex-1">${op.nombre}</span>
-                                <span class="font-semibold text-purple-600 text-sm">${this.formatPrice(op.precioAdicional)}</span>
+                            <label class="flex items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100 hover:bg-teal-50 hover:border-teal-200 transition-all cursor-pointer">
+                                <input type="checkbox" class="h-4 w-4 rounded text-teal-600 focus:ring-teal-500 border-gray-300" name="${cat.id}" value="${op.id}" data-precio="${op.precioAdicional}" data-nombre="${op.nombre}">
+                                <span class="ml-2.5 text-gray-700 flex-1 text-sm">${op.nombre}</span>
+                                <span class="font-semibold text-teal-600 text-sm">${this.formatPrice(op.precioAdicional)}</span>
                             </label>
                         `).join('')}
                     </div>
@@ -1200,50 +1565,50 @@ document.addEventListener("DOMContentLoaded", () => {
             `).join('');
 
             return `
-            <div class="bg-white rounded-t-2xl shadow-lg -m-4">
+            <div class="bg-white rounded-t-2xl shadow-lg mx-4 max-w-full overflow-hidden">
                 <div class="relative">
-                    <img src="${producto.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cHJvZHVjdG8ubm9tYnJlfTwvdGV4dD48L3N2Zz4='" class="w-full h-48 object-cover rounded-t-2xl">
-                    <!-- Badge de precio destacado -->
-                    <div class="absolute top-4 right-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-3 py-2 rounded-xl font-bold shadow-lg">
+                    <img src="${producto.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cHJvZHVjdG8ubm9tYnJlfTwvdGV4dD48L3N2Zz4='" class="w-full h-40 object-cover rounded-t-2xl">
+                    <!-- Badge de precio más compacto -->
+                    <div class="absolute top-3 right-3 bg-gradient-to-r from-teal-500 to-emerald-500 text-white px-2 py-1 rounded-lg font-bold shadow-lg text-sm">
                         ${this.formatPrice(producto.precio, false)}
                     </div>
-                    <!-- Badge del restaurante -->
-                    <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg">
-                        <p class="text-sm font-medium text-gray-800">${producto.tienda.nombre}</p>
+                    <!-- Badge del restaurante más compacto -->
+                    <div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-lg">
+                        <p class="text-xs font-medium text-gray-800">${producto.tienda.nombre}</p>
                     </div>
                 </div>
-                <div class="p-4">
-                    <h2 class="font-bold text-2xl text-gray-800 mb-2">${producto.nombre}</h2>
-                    <p class="text-gray-600">${producto.descripcion}</p>
+                <div class="p-3">
+                    <h2 class="font-bold text-xl text-gray-800 mb-1">${producto.nombre}</h2>
+                    <p class="text-gray-600 text-sm">${producto.descripcion}</p>
                 </div>
             </div>
 
-            <!-- Opciones de personalización -->
-            ${opcionesHtml ? `<div class="p-4">${opcionesHtml}</div>` : ''}
+            <!-- Opciones de personalización más compactas -->
+            ${opcionesHtml ? `<div class="px-4 py-3">${opcionesHtml}</div>` : ''}
 
-            <!-- Footer fijo con controles -->
-            <div class="sticky bottom-0 bg-white/95 backdrop-blur-md p-4 shadow-lg border-t border-gray-100 -mx-4 -mb-4 rounded-t-2xl">
-                <div class="flex items-center justify-between mb-4">
-                    <!-- Controles de cantidad más compactos -->
-                    <div class="flex items-center gap-3">
-                        <button class="w-8 h-8 bg-gray-100 hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors" data-action="update-qty" data-op="-1">
+            <!-- Footer fijo con controles optimizado -->
+            <div class="sticky bottom-0 bg-white/95 backdrop-blur-sm mx-4 p-3 shadow-lg border-t border-gray-100 rounded-t-xl max-w-full">
+                <div class="flex items-center justify-between mb-3">
+                    <!-- Controles de cantidad compactos -->
+                    <div class="flex items-center gap-2">
+                        <button class="w-7 h-7 bg-gray-100 hover:bg-teal-100 rounded-lg flex items-center justify-center transition-colors" data-action="update-qty" data-op="-1">
                             <i class="fas fa-minus text-gray-600 text-xs"></i>
                         </button>
-                        <span id="item-qty" class="font-bold text-xl w-8 text-center text-purple-600">1</span>
-                        <button class="w-8 h-8 bg-gray-100 hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors" data-action="update-qty" data-op="1">
+                        <span id="item-qty" class="font-bold text-lg w-6 text-center text-teal-600">1</span>
+                        <button class="w-7 h-7 bg-gray-100 hover:bg-teal-100 rounded-lg flex items-center justify-center transition-colors" data-action="update-qty" data-op="1">
                             <i class="fas fa-plus text-gray-600 text-xs"></i>
                         </button>
                     </div>
                     
-                    <!-- Total más prominente -->
+                    <!-- Total compacto -->
                     <div class="text-right">
-                        <p class="text-sm text-gray-500">Total</p>
-                        <span id="total-producto" class="font-bold text-2xl text-purple-600">${this.formatPrice(producto.precio, false)}</span>
+                        <p class="text-xs text-gray-500">Total</p>
+                        <span id="total-producto" class="font-bold text-lg text-teal-600">${this.formatPrice(producto.precio, false)}</span>
                     </div>
                 </div>
                 
-                <!-- Botón de acción más atractivo -->
-                <button class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-2" data-action="add-custom-to-cart">
+                <!-- Botón de acción compacto -->
+                <button class="w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-bold py-2.5 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-[1.01] transition-all duration-200 flex items-center justify-center gap-2 hover:from-teal-600 hover:to-emerald-600" data-action="add-custom-to-cart">
                     <i class="fas fa-plus text-sm"></i>
                     <span>Añadir al Pedido</span>
                 </button>
@@ -1259,7 +1624,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <h3 class="text-lg font-bold text-gray-600 mb-2">Tu carrito está vacío</h3>
                     <p class="text-gray-500 mb-6">¡Explora nuestros deliciosos productos!</p>
-                    <button class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg transition-all" data-action="navigate" data-view="inicio">
+                    <button class="bg-gradient-to-r from-teal-500 to-emerald-500 text-white px-6 py-3 rounded-xl font-medium hover:shadow-lg transition-all" data-action="navigate" data-view="inicio">
                         Explorar productos
                     </button>
                 </div>`;
@@ -1269,7 +1634,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const itemsHtml = State.carrito.map((item, index) => `
                 <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-3">
                     <div class="flex items-start gap-3">
-                        <div class="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <div class="w-12 h-12 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
                             <i class="fas fa-utensils text-white text-sm"></i>
                         </div>
                         <div class="flex-1 min-w-0">
@@ -1283,7 +1648,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                     ` : ''}
                                 </div>
                                 <div class="text-right ml-3">
-                                    <p class="font-bold text-purple-600">${this.formatPrice(item.precioFinal, false)}</p>
+                                    <p class="font-bold text-teal-600">${this.formatPrice(item.precioFinal, false)}</p>
                                     <button class="text-red-400 hover:text-red-600 transition-colors mt-1" data-action="remove-from-cart" data-index="${index}">
                                         <i class="fas fa-trash text-xs"></i>
                                     </button>
@@ -1297,9 +1662,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return `
             <div class="px-3 py-2">
                 <!-- Header del carrito -->
-                <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 mb-4 border border-amber-100">
+                <div class="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-4 mb-4 border border-teal-100">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center">
+                        <div class="w-10 h-10 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-xl flex items-center justify-center">
                             <i class="fas fa-store text-white text-sm"></i>
                         </div>
                         <div>
@@ -1312,8 +1677,93 @@ document.addEventListener("DOMContentLoaded", () => {
                 <!-- Lista de productos -->
                 ${itemsHtml}
 
+                <!-- Opciones de entrega -->
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+                    <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <i class="fas fa-truck text-teal-500"></i>
+                        Tipo de entrega
+                    </h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${State.tipoEntrega === 'domicilio' ? 'border-teal-300 bg-teal-50' : 'border-gray-200 hover:border-gray-300'}">
+                            <input type="radio" name="tipoEntrega" value="domicilio" ${State.tipoEntrega === 'domicilio' ? 'checked' : ''} class="text-teal-500 focus:ring-teal-500" data-action="change-entrega">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-800">🏠 Entrega a domicilio</div>
+                                <div class="text-sm text-gray-600">Te llevamos el pedido donde estés</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${State.tipoEntrega === 'recoger' ? 'border-teal-300 bg-teal-50' : 'border-gray-200 hover:border-gray-300'}">
+                            <input type="radio" name="tipoEntrega" value="recoger" ${State.tipoEntrega === 'recoger' ? 'checked' : ''} class="text-teal-500 focus:ring-teal-500" data-action="change-entrega">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-800">🚶 Recoger en tienda</div>
+                                <div class="text-sm text-gray-600">Pasas a recoger tu pedido</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Opciones de pago -->
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+                    <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <i class="fas fa-credit-card text-teal-500"></i>
+                        Método de pago
+                    </h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${State.tipoPago === 'efectivo' ? 'border-teal-300 bg-teal-50' : 'border-gray-200 hover:border-gray-300'}">
+                            <input type="radio" name="tipoPago" value="efectivo" ${State.tipoPago === 'efectivo' ? 'checked' : ''} class="text-teal-500 focus:ring-teal-500" data-action="change-pago">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-800">💵 Efectivo</div>
+                                <div class="text-sm text-gray-600">Pago en efectivo al recibir</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${State.tipoPago === 'transferencia' ? 'border-teal-300 bg-teal-50' : 'border-gray-200 hover:border-gray-300'}">
+                            <input type="radio" name="tipoPago" value="transferencia" ${State.tipoPago === 'transferencia' ? 'checked' : ''} class="text-teal-500 focus:ring-teal-500" data-action="change-pago">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-800">🏦 Transferencia</div>
+                                <div class="text-sm text-gray-600">Pago por transferencia bancaria</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Notas del pedido -->
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+                    <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <i class="fas fa-edit text-teal-500"></i>
+                        Notas especiales
+                    </h3>
+                    <textarea 
+                        placeholder="Ej: Sin salsa picante, sin cebolla, etc."
+                        class="w-full p-3 border border-gray-200 rounded-lg resize-none focus:border-teal-300 focus:ring-2 focus:ring-teal-100 text-sm"
+                        rows="2"
+                        data-action="change-notas-generales"
+                        maxlength="200"
+                    >${State.notasGenerales}</textarea>
+                    <div class="text-xs text-gray-500 mt-1">Máximo 200 caracteres</div>
+                </div>
+
+                <!-- Notas de domicilio (solo si es entrega a domicilio) -->
+                ${State.tipoEntrega === 'domicilio' ? `
+                <div class="bg-amber-50 rounded-xl p-4 shadow-sm border border-amber-200 mb-4">
+                    <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <i class="fas fa-map-marker-alt text-amber-500"></i>
+                        Ubicación para entrega
+                    </h3>
+                    <textarea 
+                        placeholder="Ej: Torre 3, Piso 5, Apartamento 502. Timbre azul..."
+                        class="w-full p-3 border border-amber-200 rounded-lg resize-none focus:border-amber-300 focus:ring-2 focus:ring-amber-100 text-sm bg-white"
+                        rows="3"
+                        data-action="change-notas-domicilio"
+                        maxlength="300"
+                    >${State.notasDomicilio}</textarea>
+                    <div class="text-xs text-amber-600 mt-1">
+                        <i class="fas fa-info-circle"></i>
+                        Incluye torre, piso, apartamento y referencias importantes
+                    </div>
+                </div>
+                ` : ''}
+
                 <!-- Resumen total -->
-                <div class="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl p-4 mt-4">
+                <div class="bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-xl p-4 mt-4">
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <p class="text-sm opacity-90">Total a pagar</p>
@@ -1552,7 +2002,7 @@ getCarouselTiendasHTML(tiendas) {
                 ${tiendas.map(t => `
                     <div class="snap-center flex-shrink-0 w-16 h-16 relative cursor-pointer group" data-action="navigate" data-view="tiendas" data-id="${t.id}">
                         <div class="w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-white to-gray-50 border-2 border-gray-100 shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110 group-hover:border-orange-200">
-                            <img src="${t.logoUrl}" alt="${t.nombre}" class="w-full h-full object-cover">
+                            ${getTiendaLogoHTML(t)}
                         </div>
                         <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
                             <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
@@ -1563,35 +2013,101 @@ getCarouselTiendasHTML(tiendas) {
         </div>
     </div>`;
 },        /**
-         * Genera barra horizontal de categorías de alimentos
+         * Nueva barra de categorías más moderna y compacta
          */
 getCategoryBarHTML() {
     const categories = [
-        { name: 'Desayuno', icon: 'fa-mug-hot', gradient: 'from-yellow-400 to-orange-400', textColor: 'text-yellow-700' },
-        { name: 'Rápida', icon: 'fa-hamburger', gradient: 'from-red-400 to-pink-400', textColor: 'text-red-700' },
-        { name: 'Almuerzos', icon: 'fa-utensils', gradient: 'from-green-400 to-emerald-400', textColor: 'text-green-700' },
-        { name: 'Fritos', icon: 'fa-fire', gradient: 'from-orange-400 to-red-400', textColor: 'text-orange-700' },
-        { name: 'Dulces', icon: 'fa-cookie-bite', gradient: 'from-pink-400 to-purple-400', textColor: 'text-pink-700' }
+        { name: 'Desayuno', icon: 'fa-coffee', gradient: 'from-amber-400 to-orange-400' },
+        { name: 'Rápida', icon: 'fa-hamburger', gradient: 'from-red-400 to-pink-400' },
+        { name: 'Almuerzos', icon: 'fa-utensils', gradient: 'from-teal-400 to-cyan-400' },
+        { name: 'Bebidas', icon: 'fa-glass-cheers', gradient: 'from-blue-400 to-indigo-400' },
+        { name: 'Postres', icon: 'fa-ice-cream', gradient: 'from-pink-400 to-rose-400' },
+        { name: 'Saludable', icon: 'fa-leaf', gradient: 'from-green-400 to-emerald-400' }
     ];
     return `
-    <div class="px-4 py-2">
-        <div class="overflow-x-auto snap-x snap-mandatory hide-scrollbar">
-            <div class="flex space-x-3">
+    <div class="px-4 py-4">
+        <div class="overflow-x-auto hide-scrollbar">
+            <div class="flex gap-3" style="width: max-content;">
                 ${categories.map(cat => `
-                    <button class="snap-center flex-shrink-0 relative group" data-action="filter-category" data-category="${cat.name}">
-                        <div class="bg-gradient-to-r ${cat.gradient} p-3 rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110">
-                            <div class="flex flex-col items-center space-y-1 text-white">
+                    <button class="flex-shrink-0 group" data-action="filter-category" data-category="${cat.name}">
+                        <div class="bg-gradient-to-r ${cat.gradient} p-3 rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105 min-w-[70px]">
+                            <div class="flex flex-col items-center gap-1 text-white">
                                 <i class="fas ${cat.icon} text-sm"></i>
-                                <span class="text-xs font-bold">${cat.name}</span>
+                                <span class="text-xs font-semibold">${cat.name}</span>
                             </div>
                         </div>
-                        <div class="absolute inset-0 bg-white/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </button>
                 `).join('')}
             </div>
         </div>
     </div>`;
-},        /**
+},        
+        /**
+         * Nueva vista horizontal de productos por tienda
+         */
+        getProductosPorTiendaHTML(productosPorTienda) {
+            if (!productosPorTienda || Object.keys(productosPorTienda).length === 0) {
+                return `
+                <div class="flex flex-col items-center justify-center p-8 text-center">
+                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-utensils text-gray-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-600 mb-2">No hay productos disponibles</h3>
+                    <p class="text-gray-500 text-sm">Las tiendas estarán agregando productos pronto</p>
+                </div>`;
+            }
+            
+            return Object.entries(productosPorTienda).map(([tiendaNombre, data]) => {
+                const { tienda, productos } = data;
+                
+                return `
+                <div class="mb-6">
+                    <!-- Header de la tienda -->
+                    <div class="px-4 py-2 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl overflow-hidden shadow-sm border border-gray-200">
+                                ${getTiendaLogoHTML(tienda)}
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-base">${tienda.nombre}</h3>
+                                <p class="text-gray-500 text-xs">Productos frescos</p>
+                            </div>
+                        </div>
+                        <button class="text-teal-600 text-xs font-semibold hover:text-teal-700 transition-colors bg-teal-50 px-2 py-1 rounded-md" data-action="navigate" data-view="tiendas" data-id="${tienda.id}">
+                            Ver todos
+                        </button>
+                    </div>
+                    
+                    <!-- Scroll horizontal de productos -->
+                    <div class="overflow-x-auto hide-scrollbar px-4">
+                        <div class="flex gap-2 pb-2" style="width: max-content;">
+                            ${productos.map(p => `
+                                <div class="flex-shrink-0 w-32 h-48 group cursor-pointer" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
+                                    <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 transition-all duration-300 group-hover:scale-105 h-full flex flex-col">
+                                        <div class="relative h-24 flex-shrink-0">
+                                            <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4IiBoZWlnaHQ9Ijk2IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiNmM2Y0ZjYiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiBmaWxsPSIjOTdhM2I0Ij7wn42977iPPC90ZXh0Pjwvc3ZnPg=='" class="w-full h-full object-cover">
+                                        </div>
+                                        <div class="p-2 flex flex-col justify-between flex-grow">
+                                            <div class="mb-1">
+                                                <h4 class="font-medium text-xs text-gray-800 leading-tight line-clamp-2">${p.nombre}</h4>
+                                            </div>
+                                            <div class="flex items-center justify-between mt-auto">
+                                                <span class="font-bold text-teal-600 text-sm">${this.formatPrice(p.precio, false)}</span>
+                                                <button class="bg-teal-500 text-white w-6 h-6 rounded-full text-xs hover:bg-teal-600 transition-colors flex items-center justify-center">
+                                                    <i class="fas fa-plus text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        },
+
+        /**
          * Grid compacto de productos (mejorado)
          */
         getSmallProductGridHTML(productos) {
@@ -1665,6 +2181,18 @@ getCategoryBarHTML() {
          * Grid de productos de una tienda específica (nuevo diseño moderno)
          */
         getProductosTiendaHTML(productos, tienda) {
+            // Validar si existe la tienda
+            if (!tienda) {
+                return this.getErrorHTML(
+                    '¡Ups! Algo salió mal',
+                    'No pudimos cargar la información de la tienda.<br>Esto puede pasar si refrescaste la página.',
+                    [
+                        { text: '🏪 Ver Tiendas', view: 'tiendas', icon: 'fas fa-store' },
+                        { text: '🏠 Ir a Inicio', view: 'inicio', icon: 'fas fa-home' }
+                    ]
+                );
+            }
+
             if (!productos || productos.length === 0) {
                 return `
                 <div class="text-center p-12">
@@ -1673,7 +2201,7 @@ getCategoryBarHTML() {
                     </div>
                     <h3 class="text-lg font-bold text-gray-600 mb-2">No hay productos</h3>
                     <p class="text-gray-500 mb-4">Esta tienda no tiene productos disponibles.</p>
-                    <button class="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-xl font-medium hover:shadow-lg transition-all" data-action="navigate" data-view="tiendas">
+                    <button class="bg-gradient-to-r from-teal-500 to-emerald-500 text-white px-6 py-2 rounded-xl font-medium hover:shadow-lg transition-all" data-action="navigate" data-view="tiendas">
                         Ver otras tiendas
                     </button>
                 </div>`;
@@ -1682,9 +2210,9 @@ getCategoryBarHTML() {
             return `
             <div class="px-3 py-2">
                 <!-- Header de info de la tienda -->
-                <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 mb-4 border border-purple-100">
+                <div class="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-2xl p-4 mb-4 border border-teal-100">
                     <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                        <div class="w-12 h-12 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg">
                             <i class="fas fa-store text-white text-lg"></i>
                         </div>
                         <div class="flex-1">
@@ -1692,42 +2220,34 @@ getCategoryBarHTML() {
                             <p class="text-sm text-gray-600">${productos.length} productos disponibles</p>
                         </div>
                         <div class="text-right">
-                            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-check text-green-600 text-sm"></i>
+                            <div class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-check text-emerald-600 text-sm"></i>
                             </div>
-                            <p class="text-xs text-green-600 font-medium mt-1">Abierto</p>
+                            <p class="text-xs text-emerald-600 font-medium mt-1">Abierto</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Grid de productos mejorado -->
-                <div class="grid grid-cols-2 gap-3">
-                    ${productos.map(p => `
-                        <div class="group cursor-pointer transform transition-all duration-300 hover:scale-[1.02]" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
-                            <div class="bg-white rounded-2xl overflow-hidden shadow-md group-hover:shadow-xl border border-gray-100">
+                <!-- Grid de productos con el mismo diseño del inicio -->
+                <div class="p-3">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        ${productos.map(p => `
+                            <div class="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer transform transition duration-200 hover:scale-105 border border-gray-100" data-action="navigate" data-view="detalleProducto" data-id="${p.id}">
                                 <div class="relative">
-                                    <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzk3YTNiNCI+8J+NvSR7cC5ub21icmV9PC90ZXh0Pjwvc3ZnPg=='" class="w-full h-24 object-cover">
-                                    <div class="absolute top-2 right-2 w-6 h-6 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
-                                        <i class="fas fa-heart text-gray-400 text-xs hover:text-red-500 transition-colors cursor-pointer"></i>
-                                    </div>
-                                    <!-- Badge de precio destacado -->
-                                    <div class="absolute bottom-2 left-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg">
-                                        ${this.formatPrice(p.precio, false)}
-                                    </div>
-                                </div>
-                                <div class="p-3">
-                                    <h3 class="font-bold text-sm text-gray-800 leading-tight mb-1 line-clamp-2">${p.nombre}</h3>
-                                    <p class="text-xs text-gray-500 mb-3 line-clamp-2">${p.descripcion || 'Delicioso producto disponible'}</p>
-                                    
-                                    <!-- Botón de acción más pequeño -->
-                                    <button class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-3 rounded-xl text-xs font-medium shadow-md group-hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2">
+                                    <img src="${p.imagenUrl}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJjZW50cmFsIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk3YTNiNCI+🍽️</text></svg>'" class="w-full h-20 object-cover">
+                                    <!-- Botón + en la esquina superior derecha más pequeño -->
+                                    <button class="absolute top-1.5 right-1.5 w-6 h-6 bg-teal-500 hover:bg-teal-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors" onclick="event.stopPropagation()">
                                         <i class="fas fa-plus text-xs"></i>
-                                        <span>Personalizar</span>
                                     </button>
                                 </div>
+                                <div class="p-2.5">
+                                    <h3 class="font-semibold text-xs text-slate-800 truncate leading-tight">${p.nombre}</h3>
+                                    <p class="text-xs text-slate-500 truncate">${tienda.nombre}</p>
+                                    <p class="font-bold text-teal-600 mt-1 text-sm">${this.formatPrice(p.precio, false)}</p>
+                                </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        `).join('')}
+                    </div>
                 </div>
 
                 <!-- Footer con info adicional -->
@@ -1750,6 +2270,9 @@ getCategoryBarHTML() {
     
     const AppController = {
         init() {
+            // Configurar navegación del historial
+            this.setupInitialView();
+            
             document.body.addEventListener('click', e => {
                 const target = e.target.closest('[data-action]');
                 if (!target) {
@@ -1758,13 +2281,22 @@ getCategoryBarHTML() {
                 }
                 e.preventDefault();
                 const { action, view, id, op, index } = target.dataset;
+                const tiendaId = target.dataset.tiendaId; // Convierte data-tienda-id a tiendaId
+                
+                console.log('🖱️ Click detectado:', { action, view, id, tiendaId, target: target.outerHTML.substring(0, 100) });
 
                 switch(action) {
-                    case 'navigate': Views.render(view, { id }); break;
+                    case 'navigate': 
+                        Views.render(view, { id: id || tiendaId, tiendaId }); 
+                        break;
                     case 'add-custom-to-cart': this.agregarProductoPersonalizado(); break;
                     case 'update-qty': this.actualizarCantidadProducto(parseInt(op)); break;
                     case 'remove-from-cart': this.removerDelCarrito(parseInt(index)); break;
                     case 'checkout': this.enviarPedido(); break;
+                    case 'change-entrega': this.cambiarTipoEntrega(target.value); break;
+                    case 'change-pago': this.cambiarTipoPago(target.value); break;
+                    case 'change-notas-generales': this.cambiarNotasGenerales(target.value); break;
+                    case 'change-notas-domicilio': this.cambiarNotasDomicilio(target.value); break;
                 }
             });
             Nav.addEventListener('click', e => {
@@ -1811,6 +2343,63 @@ getCategoryBarHTML() {
             });
         },
 
+        // Determinar vista inicial al cargar/refrescar
+        setupInitialView() {
+            const hash = window.location.hash.slice(1); // Remover #
+            
+            if (hash && hash !== 'login') {
+                // Si hay un hash válido, intentar navegar ahí
+                const [view, ...params] = hash.split('/');
+                this.handleDeepLink(view, params);
+            } else {
+                // Vista por defecto
+                Views.render('inicio');
+            }
+        },
+
+        // Manejar enlaces profundos (deep links)
+        async handleDeepLink(view, params) {
+            try {
+                switch (view) {
+                    case 'tienda':
+                        if (params[0]) {
+                            const tiendaId = parseInt(params[0]);
+                            Views.render('productosTienda', { tiendaId });
+                        } else {
+                            Views.render('tiendas');
+                        }
+                        break;
+                        
+                    case 'producto':
+                        if (params[0]) {
+                            const productoId = parseInt(params[0]);
+                            Views.render('detalleProducto', { id: productoId });
+                        } else {
+                            Views.render('inicio');
+                        }
+                        break;
+                        
+                    case 'tiendas':
+                        Views.render('tiendas');
+                        break;
+                        
+                    case 'carrito':
+                        Views.render('carrito');
+                        break;
+                        
+                    case 'misPedidos':
+                        Views.render('misPedidos');
+                        break;
+                        
+                    default:
+                        Views.render('inicio');
+                }
+            } catch (error) {
+                console.error('Error en deep link:', error);
+                Views.render('inicio');
+            }
+        },
+
         actualizarCantidadProducto(operacion) {
             const qtyElement = document.getElementById('item-qty');
             if (!qtyElement) return;
@@ -1846,6 +2435,9 @@ getCategoryBarHTML() {
                 tiendaId: productoBase.tienda.id
             });
             
+            // 💾 Guardar carrito en localStorage
+            window.CarritoPersistente.guardar();
+            
             State.tiendaActual = { id: productoBase.tienda.id, nombre: productoBase.tienda.nombre };
             Toast.show(`${cantidad}x "${productoBase.nombre}" añadido.`, 'success');
             Views.renderFloatingCartButton();
@@ -1855,6 +2447,9 @@ getCategoryBarHTML() {
         removerDelCarrito(index) {
             State.carrito.splice(index, 1);
             if(State.carrito.length === 0) State.tiendaActual = null;
+            
+            // 💾 Guardar cambios en localStorage
+            window.CarritoPersistente.guardar();
             Views.render('carrito');
         },
         
@@ -1869,7 +2464,12 @@ getCategoryBarHTML() {
                     id: item.productoId,
                     cantidad: item.cantidad,
                     opcionesIds: item.opciones.map(op => op.id)
-                }))
+                })),
+                // 🚛 Incluir información de entrega y pago
+                tipoEntrega: State.tipoEntrega,
+                tipoPago: State.tipoPago,
+                notasGenerales: State.notasGenerales || '',
+                notasDomicilio: State.notasDomicilio || ''
             };
 
             try {
@@ -1879,8 +2479,18 @@ getCategoryBarHTML() {
                 localStorage.setItem('last-order-time', Date.now().toString());
                 
                 Toast.show("¡Pedido realizado con éxito!", 'success');
+                
+                // 🧹 Limpiar carrito y estado
                 State.carrito = [];
                 State.tiendaActual = null;
+                State.tipoEntrega = 'domicilio';
+                State.tipoPago = 'efectivo';
+                State.notasGenerales = '';
+                State.notasDomicilio = '';
+                
+                // 💾 Limpiar localStorage del carrito
+                window.CarritoPersistente.limpiar();
+                
                 Views.renderFloatingCartButton();
                 
                 // 🔔 NUEVO FLUJO: Verificar permisos DESPUÉS del pedido exitoso
@@ -2005,6 +2615,33 @@ getCategoryBarHTML() {
                     resolve(false);
                 };
             });
+        },
+
+        // 🚛 Métodos para manejar cambios en el carrito
+        cambiarTipoEntrega(tipo) {
+            State.tipoEntrega = tipo;
+            window.CarritoPersistente.guardar();
+            console.log('🚛 Tipo de entrega cambiado a:', tipo);
+            // Re-renderizar el carrito para mostrar/ocultar campos de domicilio
+            Views.render('carrito');
+        },
+
+        cambiarTipoPago(tipo) {
+            State.tipoPago = tipo;
+            window.CarritoPersistente.guardar();
+            console.log('💳 Tipo de pago cambiado a:', tipo);
+        },
+
+        cambiarNotasGenerales(notas) {
+            State.notasGenerales = notas;
+            window.CarritoPersistente.guardar();
+            console.log('📝 Notas generales actualizadas:', notas.substring(0, 50));
+        },
+
+        cambiarNotasDomicilio(notas) {
+            State.notasDomicilio = notas;
+            window.CarritoPersistente.guardar();
+            console.log('🏠 Notas de domicilio actualizadas:', notas.substring(0, 50));
         }
     };
 
@@ -2026,6 +2663,16 @@ getCategoryBarHTML() {
     // 🌐 Exponer funciones globalmente para desarrollo
     window.WebNotifications = WebNotifications;
     window.SmartCache = SmartCache;
+    window.CarritoPersistente = CarritoPersistente;
 
+    // Configurar manejo del historial antes de inicializar
+    Views.setupHistoryManagement();
+    
+    // Inicializar controlador
     AppController.init();
+    
+    // 💾 Cargar carrito desde localStorage DESPUÉS de inicializar
+    setTimeout(() => {
+        CarritoPersistente.cargar();
+    }, 100);
 });

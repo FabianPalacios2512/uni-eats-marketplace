@@ -1,20 +1,37 @@
 package com.remington.unieats.marketplace.service;
 
-import com.remington.unieats.marketplace.dto.*;
-import com.remington.unieats.marketplace.model.entity.*;
-import com.remington.unieats.marketplace.model.enums.DiaSemana;
-import com.remington.unieats.marketplace.model.repository.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.remington.unieats.marketplace.dto.CategoriaOpcionCreacionDTO;
+import com.remington.unieats.marketplace.dto.HorarioUpdateDTO;
+import com.remington.unieats.marketplace.dto.OpcionCreacionDTO;
+import com.remington.unieats.marketplace.dto.PedidoVendedorDTO;
+import com.remington.unieats.marketplace.dto.TiendaCreacionDTO;
+import com.remington.unieats.marketplace.dto.TiendaUpdateDTO;
+import com.remington.unieats.marketplace.model.entity.CategoriaOpcion;
+import com.remington.unieats.marketplace.model.entity.DetallePedido;
+import com.remington.unieats.marketplace.model.entity.Horario;
+import com.remington.unieats.marketplace.model.entity.Opcion;
+import com.remington.unieats.marketplace.model.entity.Pedido;
+import com.remington.unieats.marketplace.model.entity.Producto;
+import com.remington.unieats.marketplace.model.entity.Tienda;
+import com.remington.unieats.marketplace.model.entity.Usuario;
+import com.remington.unieats.marketplace.model.enums.DiaSemana;
+import com.remington.unieats.marketplace.model.repository.CategoriaOpcionRepository;
+import com.remington.unieats.marketplace.model.repository.HorarioRepository;
+import com.remington.unieats.marketplace.model.repository.PedidoRepository;
+import com.remington.unieats.marketplace.model.repository.ProductoRepository;
+import com.remington.unieats.marketplace.model.repository.TiendaRepository;
 
 @Service
 public class VendedorServiceImpl implements VendedorService {
@@ -169,6 +186,12 @@ public class VendedorServiceImpl implements VendedorService {
         dto.setTotal(pedido.getTotal());
         dto.setNombreComprador(pedido.getComprador().getNombre() + " " + pedido.getComprador().getApellido());
 
+        // Mapear nuevos campos de entrega y pago
+        dto.setTipoEntrega(pedido.getTipoEntrega());
+        dto.setTipoPago(pedido.getTipoPago());
+        dto.setNotasGenerales(pedido.getNotasGenerales());
+        dto.setNotasDomicilio(pedido.getNotasDomicilio());
+
         List<PedidoVendedorDTO.DetallePedidoVendedorDTO> detallesDTO = pedido.getDetalles().stream()
                 .map(this::convertirADetalleDTO)
                 .collect(Collectors.toList());
@@ -182,6 +205,15 @@ public class VendedorServiceImpl implements VendedorService {
         dto.setNombreProducto(detalle.getProducto().getNombre());
         dto.setCantidad(detalle.getCantidad());
         dto.setPrecioUnitario(detalle.getPrecioUnitario());
+        
+        // Mapear opciones seleccionadas
+        if (detalle.getOpcionesSeleccionadas() != null && !detalle.getOpcionesSeleccionadas().isEmpty()) {
+            String opciones = detalle.getOpcionesSeleccionadas().stream()
+                    .map(opcion -> opcion.getNombre())
+                    .collect(Collectors.joining(", "));
+            dto.setOpcionesSeleccionadas(opciones);
+        }
+        
         return dto;
     }
 }

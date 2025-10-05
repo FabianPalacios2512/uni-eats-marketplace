@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Logos - Uni-Eats</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-8">
+        <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">🧪 Test de Logos de Tiendas</h1>
+        
+        <!-- Sección Backend Data -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 text-gray-700">📊 Datos del Backend</h2>
+            <div th:each="tienda : ${tiendas}" class="mb-4 p-4 border rounded-lg">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                        <img th:if="${tienda.logoUrl != null and !tienda.logoUrl.isEmpty()}" 
+                             th:src="${tienda.logoUrl}" 
+                             th:alt="${tienda.nombre}" 
+                             class="w-full h-full object-cover"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg hidden">
+                            <span th:text="${tienda.nombre.length() > 0 ? tienda.nombre.substring(0, 1).toUpperCase() : '?'}"></span>
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="font-bold text-gray-800" th:text="${tienda.nombre}"></h3>
+                        <p class="text-sm text-gray-500" th:text="${tienda.descripcion}"></p>
+                        <p class="text-xs text-gray-400" th:text="'Logo URL: ' + ${tienda.logoUrl}"></p>
+                        <p class="text-xs text-gray-400" th:text="'ID: ' + ${tienda.id}"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección JavaScript Test -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-bold mb-4 text-gray-700">🔧 Test JavaScript</h2>
+            <div id="javascript-test" class="space-y-4">
+                <!-- El contenido se cargará via JavaScript -->
+            </div>
+            <button onclick="loadTiendasViaAPI()" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                🔄 Cargar via API
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript de prueba -->
+    <script th:src="@{/js/comprador.js}"></script>
+    <script>
+        // Test de las funciones JavaScript
+        function testJavaScriptFunctions() {
+            console.log('🧪 Iniciando test de funciones JavaScript...');
+            
+            // Test de función getTiendaLogoHTML
+            const testTienda = {
+                id: 1,
+                nombre: "Test Store",
+                logoUrl: "/uploads/logos/21885aee-9879-4a96-a149-e658111d1c24.jpg"
+            };
+            
+            console.log('📝 Test tienda:', testTienda);
+            
+            if (typeof getTiendaLogoHTML === 'function') {
+                const logoHtml = getTiendaLogoHTML(testTienda);
+                console.log('✅ getTiendaLogoHTML función encontrada');
+                console.log('🎨 HTML generado:', logoHtml);
+            } else {
+                console.error('❌ getTiendaLogoHTML función NO encontrada');
+            }
+            
+            if (typeof getInitials === 'function') {
+                const initials = getInitials("Test Store");
+                console.log('✅ getInitials función encontrada, resultado:', initials);
+            } else {
+                console.error('❌ getInitials función NO encontrada');
+            }
+        }
+
+        async function loadTiendasViaAPI() {
+            console.log('🌐 Cargando tiendas via API...');
+            
+            try {
+                const response = await fetch('/api/test/tiendas');
+                const tiendas = await response.json();
+                
+                console.log('📊 Tiendas recibidas del API:', tiendas);
+                
+                const container = document.getElementById('javascript-test');
+                container.innerHTML = '';
+                
+                tiendas.forEach(tienda => {
+                    console.log(`🏪 Procesando tienda: ${tienda.nombre}, Logo: ${tienda.logoUrl}`);
+                    
+                    const tiendaDiv = document.createElement('div');
+                    tiendaDiv.className = 'mb-4 p-4 border rounded-lg';
+                    
+                    let logoHtml = '';
+                    if (typeof getTiendaLogoHTML === 'function') {
+                        logoHtml = getTiendaLogoHTML(tienda);
+                    } else {
+                        logoHtml = `<div class="w-16 h-16 bg-red-500 text-white flex items-center justify-center rounded-full">❌</div>`;
+                    }
+                    
+                    tiendaDiv.innerHTML = `
+                        <div class="flex items-center gap-4">
+                            <div class="w-16 h-16 rounded-full overflow-hidden">
+                                ${logoHtml}
+                            </div>
+                            <div class="flex-grow">
+                                <h3 class="font-bold text-gray-800">${tienda.nombre}</h3>
+                                <p class="text-sm text-gray-500">${tienda.descripcion}</p>
+                                <p class="text-xs text-gray-400">Logo URL: ${tienda.logoUrl || 'NULL'}</p>
+                                <p class="text-xs text-gray-400">ID: ${tienda.id}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(tiendaDiv);
+                });
+                
+            } catch (error) {
+                console.error('❌ Error cargando tiendas:', error);
+                document.getElementById('javascript-test').innerHTML = `
+                    <div class="text-red-500">❌ Error: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Ejecutar tests cuando la página se cargue
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Página cargada, ejecutando tests...');
+            testJavaScriptFunctions();
+            loadTiendasViaAPI();
+        });
+    </script>
+</body>
+</html>

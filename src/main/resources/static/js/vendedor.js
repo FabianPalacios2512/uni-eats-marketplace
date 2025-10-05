@@ -766,13 +766,46 @@ function startVendorApp() {
                                             <i class="${currentStatus.icon} mr-1"></i>${currentStatus.text}
                                         </span>
                                     </div>
+                                    
+                                    <!-- Información de Entrega y Pago -->
+                                    <div class="mb-3 grid grid-cols-2 gap-2">
+                                        <div class="bg-teal-50 border border-teal-200 rounded-lg p-2">
+                                            <p class="text-xs font-semibold text-teal-800 mb-1">
+                                                <i class="fas fa-truck text-teal-600 mr-1"></i>Entrega
+                                            </p>
+                                            <p class="text-sm font-medium text-teal-700">
+                                                ${pedido.tipoEntrega === 'domicilio' ? '🏠 Domicilio' : '🏪 Recoger'}
+                                            </p>
+                                        </div>
+                                        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2">
+                                            <p class="text-xs font-semibold text-emerald-800 mb-1">
+                                                <i class="fas fa-credit-card text-emerald-600 mr-1"></i>Pago
+                                            </p>
+                                            <p class="text-sm font-medium text-emerald-700">
+                                                ${pedido.tipoPago === 'efectivo' ? '💵 Efectivo' : '📱 Transferencia'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Notas si existen -->
+                                    ${(pedido.notasGenerales || pedido.notasDomicilio) ? `
+                                    <div class="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                        <p class="text-xs font-semibold text-amber-800 mb-2">
+                                            <i class="fas fa-sticky-note text-amber-600 mr-1"></i>Notas del Cliente
+                                        </p>
+                                        ${pedido.notasGenerales ? `<p class="text-sm text-amber-700 mb-1"><strong>General:</strong> ${pedido.notasGenerales}</p>` : ''}
+                                        ${pedido.notasDomicilio && pedido.tipoEntrega === 'domicilio' ? `<p class="text-sm text-amber-700"><strong>Domicilio:</strong> ${pedido.notasDomicilio}</p>` : ''}
+                                    </div>
+                                    ` : ''}
+
                                     <div class="border-t border-b py-3 space-y-2">
                                         ${pedido.detalles.map(d => `
                                             <div class="flex justify-between text-sm">
-                                                <span class="text-slate-600">
+                                                <div class="text-slate-600">
                                                     <span class="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-semibold mr-2">${d.cantidad}x</span>
-                                                    ${d.nombreProducto}
-                                                </span>
+                                                    <span class="font-medium">${d.nombreProducto}</span>
+                                                    ${d.opcionesSeleccionadas ? `<div class="text-xs text-slate-500 mt-1 ml-8">• ${d.opcionesSeleccionadas}</div>` : ''}
+                                                </div>
                                                 <span class="text-slate-700 font-medium">${formatPrice(d.precioUnitario * d.cantidad)}</span>
                                             </div>
                                         `).join('')}
@@ -887,10 +920,30 @@ function startVendorApp() {
                                                                 <i class="${currentStatus.icon} mr-1"></i>${currentStatus.text}
                                                             </span>
                                                         </div>
+                                                        
+                                                        <!-- Info de entrega y pago en historial -->
+                                                        <div class="mb-3 grid grid-cols-2 gap-2">
+                                                            <div class="bg-white border rounded p-2">
+                                                                <p class="text-xs text-slate-600">Entrega:</p>
+                                                                <p class="text-sm font-medium">
+                                                                    ${pedido.tipoEntrega === 'domicilio' ? '🏠 Domicilio' : '🏪 Recoger'}
+                                                                </p>
+                                                            </div>
+                                                            <div class="bg-white border rounded p-2">
+                                                                <p class="text-xs text-slate-600">Pago:</p>
+                                                                <p class="text-sm font-medium">
+                                                                    ${pedido.tipoPago === 'efectivo' ? '💵 Efectivo' : '📱 Transferencia'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        
                                                         <div class="text-sm space-y-1">
                                                             ${pedido.detalles.map(d => `
                                                                 <div class="flex justify-between">
-                                                                    <span class="text-slate-600">${d.cantidad}x ${d.nombreProducto}</span>
+                                                                    <div class="text-slate-600">
+                                                                        <span class="font-medium">${d.cantidad}x ${d.nombreProducto}</span>
+                                                                        ${d.opcionesSeleccionadas ? `<div class="text-xs text-slate-500 mt-1">• ${d.opcionesSeleccionadas}</div>` : ''}
+                                                                    </div>
                                                                     <span class="text-slate-700">${formatPrice(d.precioUnitario * d.cantidad)}</span>
                                                                 </div>
                                                             `).join('')}

@@ -1,10 +1,24 @@
 package com.remington.unieats.marketplace.model.entity;
 
-import com.remington.unieats.marketplace.model.enums.EstadoPedido;
-import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+
+import com.remington.unieats.marketplace.model.enums.EstadoPedido;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "pedidos")
@@ -34,6 +48,19 @@ public class Pedido {
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL)
     private List<DetallePedido> detalles;
+
+    // 🚛 Campos para entrega y pago
+    @Column(name = "tipo_entrega", length = 20)
+    private String tipoEntrega; // 'domicilio' o 'recoger'
+
+    @Column(name = "tipo_pago", length = 20)
+    private String tipoPago; // 'efectivo' o 'transferencia'
+
+    @Column(name = "notas_generales", length = 500)
+    private String notasGenerales;
+
+    @Column(name = "notas_domicilio", length = 500)
+    private String notasDomicilio;
 
     // --- Getters y Setters ---
 
@@ -91,5 +118,38 @@ public class Pedido {
 
     public void setDetalles(List<DetallePedido> detalles) {
         this.detalles = detalles;
+    }
+
+    // 🚛 Getters y Setters para entrega y pago
+    public String getTipoEntrega() {
+        return tipoEntrega;
+    }
+
+    public void setTipoEntrega(String tipoEntrega) {
+        this.tipoEntrega = tipoEntrega;
+    }
+
+    public String getTipoPago() {
+        return tipoPago;
+    }
+
+    public void setTipoPago(String tipoPago) {
+        this.tipoPago = tipoPago;
+    }
+
+    public String getNotasGenerales() {
+        return notasGenerales;
+    }
+
+    public void setNotasGenerales(String notasGenerales) {
+        this.notasGenerales = notasGenerales;
+    }
+
+    public String getNotasDomicilio() {
+        return notasDomicilio;
+    }
+
+    public void setNotasDomicilio(String notasDomicilio) {
+        this.notasDomicilio = notasDomicilio;
     }
 }

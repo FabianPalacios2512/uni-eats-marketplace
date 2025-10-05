@@ -20,11 +20,12 @@
 Agrega estas variables en Render:
 
 ```
-DATABASE_URL=jdbc:postgresql://unieatsdb.ckp2uo6uawjd.us-east-1.rds.amazonaws.com:5432/postgres
+DATABASE_URL=jdbc:postgresql://db.lfvweearttrisbbhemld.supabase.co:5432/postgres
 DATABASE_USERNAME=postgres
-DATABASE_PASSWORD=F1001504182.a
+DATABASE_PASSWORD=F1001504182.ae
 SPRING_MAIL_USERNAME=tu_email@gmail.com
 SPRING_MAIL_PASSWORD=tu_app_password_gmail
+SPRING_PROFILES_ACTIVE=prod
 ```
 
 > 📧 **IMPORTANTE GMAIL:**
@@ -32,6 +33,10 @@ SPRING_MAIL_PASSWORD=tu_app_password_gmail
 > - Usa una "App Password" de Gmail (más seguro)
 > - Ve a: Google Account → Security → 2-Step Verification → App passwords
 > - Genera una contraseña específica para esta app
+
+> 💡 **NOTA IMPORTANTE:**
+> - Usa las credenciales de Supabase que ya tienes configuradas localmente
+> - El proyecto ya está configurado para usar variables de entorno en producción
 
 ### 4️⃣ CONFIGURACIÓN AVANZADA
 - **Plan:** `Free` (para empezar)

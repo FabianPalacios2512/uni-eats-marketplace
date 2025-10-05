@@ -28,5 +28,5 @@ COPY --from=build /workspace/app/target/*.jar app.jar
 # Render usa el puerto que asigna en la variable $PORT
 EXPOSE $PORT
 
-# Comando optimizado para Render con perfil de producción
-ENTRYPOINT ["java", "-Dspring.profiles.active=prod", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/app/app.jar"]
+# Comando optimizado para Render con perfil render
+ENTRYPOINT ["java", "-Dspring.profiles.active=render", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/app/app.jar"]

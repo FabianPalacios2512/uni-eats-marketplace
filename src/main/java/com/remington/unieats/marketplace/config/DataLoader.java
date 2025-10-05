@@ -18,6 +18,8 @@ import java.util.HashMap;
 @Component
 public class DataLoader implements CommandLineRunner {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DataLoader.class);
+
     @Autowired
     private RolRepository rolRepository;
 
@@ -32,20 +34,21 @@ public class DataLoader implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        System.out.println("🚀 DataLoader iniciado...");
+        logger.info("🚀 DataLoader iniciado...");
         
-        crearRolSiNoExiste("ESTUDIANTE");
-        crearRolSiNoExiste("VENDEDOR");
-        crearRolSiNoExiste("ADMIN_PLATAFORMA");
+        try {
+            crearRolSiNoExiste("ESTUDIANTE");
+            crearRolSiNoExiste("VENDEDOR");
+            crearRolSiNoExiste("ADMIN_PLATAFORMA");
 
-        if (usuarioRepository.findByCorreo("admin@unieats.com").isEmpty()) {
-            Rol adminRol = rolRepository.findByNombre("ADMIN_PLATAFORMA").orElseThrow();
+            if (usuarioRepository.findByCorreo("admin@unieats.com").isEmpty()) {
+                Rol adminRol = rolRepository.findByNombre("ADMIN_PLATAFORMA").orElseThrow();
 
-            Usuario admin = new Usuario();
-            admin.setNombre("Admin");
-            admin.setApellido("UniEats");
-            admin.setCorreo("admin@unieats.com");
-            admin.setCedula("0000"); // Cédula de prueba para el admin
+                Usuario admin = new Usuario();
+                admin.setNombre("Admin");
+                admin.setApellido("UniEats");
+                admin.setCorreo("admin@unieats.com");
+                admin.setCedula("0000"); // Cédula de prueba para el admin
             admin.setContrasenaHash(passwordEncoder.encode("admin123"));
             admin.setActivo(true);
             admin.setRoles(Set.of(adminRol));
@@ -72,8 +75,15 @@ public class DataLoader implements CommandLineRunner {
         }
 
         // Siempre ejecutar la asignación de logos para debugging
-        System.out.println("🎨 Ejecutando asignación de logos...");
+        logger.info("🎨 Ejecutando asignación de logos...");
         asignarLogosATiendas();
+        
+        logger.info("✅ DataLoader completado exitosamente");
+        
+        } catch (Exception e) {
+            logger.error("❌ Error en DataLoader: {}", e.getMessage());
+            logger.warn("⚠️ La aplicación continuará sin datos iniciales");
+        }
     }
 
     private void crearRolSiNoExiste(String nombreRol) {

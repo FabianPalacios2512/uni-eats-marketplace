@@ -27,6 +27,9 @@ window.addEventListener('load', () => {
     }
     
     // PWA Service Worker registration
+    // PWA Service Worker temporarily disabled to prevent errors
+    // TODO: Re-enable when service-worker.js is implemented
+    /*
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/service-worker.js')
             .then(registration => {
@@ -40,6 +43,7 @@ window.addEventListener('load', () => {
                 }
             });
     }
+    */
     
     // Global cleanup on page unload
     window.addEventListener('beforeunload', () => {

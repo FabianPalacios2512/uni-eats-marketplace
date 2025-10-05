@@ -1,5 +1,7 @@
 package com.remington.unieats.marketplace.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -215,5 +217,49 @@ public class VendedorServiceImpl implements VendedorService {
         }
         
         return dto;
+    }
+
+    @Override
+    @Transactional
+    public void actualizarEstadoTienda(Integer tiendaId, Boolean estaAbierta) {
+        Tienda tienda = tiendaRepository.findById(tiendaId)
+            .orElseThrow(() -> new RuntimeException("Tienda no encontrada"));
+        tienda.setEstaAbierta(estaAbierta);
+        tiendaRepository.save(tienda);
+    }
+
+    @Override
+    public Double calcularVentasHoy(Tienda tienda) {
+        LocalDate hoy = LocalDate.now();
+        LocalDateTime inicioDelDia = hoy.atStartOfDay();
+        LocalDateTime finDelDia = hoy.atTime(23, 59, 59);
+        
+        List<Pedido> pedidosHoy = pedidoRepository.findByTiendaAndFechaCreacionBetween(
+            tienda, inicioDelDia, finDelDia);
+        
+        return pedidosHoy.stream()
+            .filter(p -> p.getEstado().name().equals("COMPLETADO"))
+            .mapToDouble(p -> p.getTotal().doubleValue())
+            .sum();
+    }
+
+    @Override
+    public Integer contarPedidosNuevos(Tienda tienda) {
+        return pedidoRepository.findByTiendaAndEstado(tienda, 
+            com.remington.unieats.marketplace.model.enums.EstadoPedido.PENDIENTE).size();
+    }
+
+    @Override
+    public Integer contarPedidosCompletadosHoy(Tienda tienda) {
+        LocalDate hoy = LocalDate.now();
+        LocalDateTime inicioDelDia = hoy.atStartOfDay();
+        LocalDateTime finDelDia = hoy.atTime(23, 59, 59);
+        
+        List<Pedido> pedidosHoy = pedidoRepository.findByTiendaAndFechaCreacionBetween(
+            tienda, inicioDelDia, finDelDia);
+        
+        return (int) pedidosHoy.stream()
+            .filter(p -> p.getEstado().name().equals("COMPLETADO"))
+            .count();
     }
 }

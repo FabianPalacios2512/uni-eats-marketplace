@@ -72,7 +72,7 @@ const Components = {
     // Common UI components
     ui: {
         // Toast notification component
-        Toast: class extends Components.BaseComponent {
+        Toast: class {
             show(message, type = 'info', duration = 3000) {
                 const toast = document.createElement('div');
                 const iconClass = Icons.getClass(`status.${type}`) || Icons.getClass('status.info');
@@ -103,7 +103,7 @@ const Components = {
         },
         
         // Loading overlay component
-        LoadingOverlay: class extends Components.BaseComponent {
+        LoadingOverlay: class {
             show(message = 'Cargando...') {
                 const overlay = document.createElement('div');
                 overlay.id = 'loading-overlay';
@@ -128,9 +128,8 @@ const Components = {
         },
         
         // Modal component
-        Modal: class extends Components.BaseComponent {
+        Modal: class {
             constructor(options = {}) {
-                super(null, options);
                 this.isOpen = false;
             }
             

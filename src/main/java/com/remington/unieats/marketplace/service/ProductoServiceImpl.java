@@ -1,15 +1,16 @@
 package com.remington.unieats.marketplace.service;
 
-import com.remington.unieats.marketplace.dto.ProductoDTO;
-import com.remington.unieats.marketplace.model.entity.Producto;
-import com.remington.unieats.marketplace.model.entity.Tienda;
-import com.remington.unieats.marketplace.model.repository.ProductoRepository;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
-import java.util.Optional;
+import com.remington.unieats.marketplace.dto.ProductoDTO;
+import com.remington.unieats.marketplace.model.entity.Producto;
+import com.remington.unieats.marketplace.model.entity.Tienda;
+import com.remington.unieats.marketplace.model.repository.ProductoRepository;
 
 @Service
 public class ProductoServiceImpl implements ProductoService {
@@ -28,6 +29,11 @@ public class ProductoServiceImpl implements ProductoService {
     @Override
     public Producto createProducto(ProductoDTO productoDTO, Tienda tienda, MultipartFile imagenFile) {
         try {
+            // Validar que la clasificación sea obligatoria
+            if (productoDTO.getClasificacion() == null) {
+                throw new RuntimeException("La clasificación del producto es obligatoria");
+            }
+            
             // 1. Subir la imagen usando almacenamiento local
             String imagenUrl = localImageService.uploadImage(imagenFile, "productos");
 
@@ -39,6 +45,9 @@ public class ProductoServiceImpl implements ProductoService {
             nuevoProducto.setImagenUrl(imagenUrl);
             nuevoProducto.setTienda(tienda);
             nuevoProducto.setDisponible(true); // Por defecto, un nuevo producto está disponible
+            
+            // NUEVO: Asignar clasificación
+            nuevoProducto.setClasificacion(productoDTO.getClasificacion());
 
             return productoRepository.save(nuevoProducto);
         } catch (Exception e) {
@@ -63,6 +72,11 @@ public class ProductoServiceImpl implements ProductoService {
             producto.setDescripcion(productoDTO.getDescripcion());
             producto.setPrecio(productoDTO.getPrecio());
             producto.setDisponible(productoDTO.getDisponible() != null ? productoDTO.getDisponible() : true);
+            
+            // NUEVO: Actualizar clasificación si se proporciona
+            if (productoDTO.getClasificacion() != null) {
+                producto.setClasificacion(productoDTO.getClasificacion());
+            }
 
             // 3. Actualizar la imagen si se proporciona una nueva
             if (imagenFile != null && !imagenFile.isEmpty()) {

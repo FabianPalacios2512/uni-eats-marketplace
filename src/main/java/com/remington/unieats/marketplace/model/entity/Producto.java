@@ -1,8 +1,23 @@
 package com.remington.unieats.marketplace.model.entity;
 
-import jakarta.persistence.*;
 import java.math.BigDecimal;
-import java.util.Set; // Importar Set
+import java.util.Set;
+
+import com.remington.unieats.marketplace.model.enums.ClasificacionProducto; // Importar Set
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "productos")
@@ -26,6 +41,11 @@ public class Producto {
 
     @Column(nullable = false)
     private boolean disponible = true;
+
+    // NUEVO: Clasificación del producto (OBLIGATORIO)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "clasificacion", nullable = true) // Permitir null para productos existentes
+    private ClasificacionProducto clasificacion;
 
     // Relación: Muchos productos pertenecen a UNA tienda.
     @ManyToOne(fetch = FetchType.LAZY)
@@ -56,6 +76,10 @@ public class Producto {
     public void setDisponible(boolean disponible) { this.disponible = disponible; }
     public Tienda getTienda() { return tienda; }
     public void setTienda(Tienda tienda) { this.tienda = tienda; }
+
+    // NUEVO: Getters y setters para clasificación
+    public ClasificacionProducto getClasificacion() { return clasificacion; }
+    public void setClasificacion(ClasificacionProducto clasificacion) { this.clasificacion = clasificacion; }
 
      public Set<CategoriaOpcion> getCategoriasDeOpciones() {
         return categoriasDeOpciones;

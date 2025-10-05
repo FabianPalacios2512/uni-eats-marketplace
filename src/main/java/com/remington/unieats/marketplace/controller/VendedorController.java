@@ -1,23 +1,42 @@
 package com.remington.unieats.marketplace.controller;
 
-import com.remington.unieats.marketplace.dto.*;
-import com.remington.unieats.marketplace.model.entity.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.remington.unieats.marketplace.dto.CategoriaOpcionCreacionDTO;
+import com.remington.unieats.marketplace.dto.DashboardVendedorDTO;
+import com.remington.unieats.marketplace.dto.HorarioUpdateDTO;
+import com.remington.unieats.marketplace.dto.PedidoVendedorDTO;
+import com.remington.unieats.marketplace.dto.ProductoDTO;
+import com.remington.unieats.marketplace.dto.TiendaCreacionDTO;
+import com.remington.unieats.marketplace.dto.TiendaUpdateDTO;
+import com.remington.unieats.marketplace.model.entity.CategoriaOpcion;
+import com.remington.unieats.marketplace.model.entity.Horario;
+import com.remington.unieats.marketplace.model.entity.Producto;
+import com.remington.unieats.marketplace.model.entity.Tienda;
+import com.remington.unieats.marketplace.model.entity.Usuario;
 import com.remington.unieats.marketplace.model.enums.EstadoPedido;
 import com.remington.unieats.marketplace.model.repository.UsuarioRepository;
 import com.remington.unieats.marketplace.service.PedidoService;
 import com.remington.unieats.marketplace.service.ProductoService;
 import com.remington.unieats.marketplace.service.VendedorService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/vendedor")
@@ -43,6 +62,11 @@ public class VendedorController {
             dto.setTienda(tienda);
             dto.setProductos(productos);
             dto.setHorarios(horarios);
+            
+            // Agregar estadísticas del dashboard
+            dto.setVentasHoy(vendedorService.calcularVentasHoy(tienda));
+            dto.setPedidosNuevos(vendedorService.contarPedidosNuevos(tienda));
+            dto.setPedidosCompletados(vendedorService.contarPedidosCompletadosHoy(tienda));
             
             return ResponseEntity.ok(dto);
         } else {
@@ -228,6 +252,26 @@ public class VendedorController {
         try {
             pedidoService.actualizarEstadoPedido(pedidoId, EstadoPedido.CANCELADO);
             return ResponseEntity.ok().body("Pedido cancelado");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/tienda/estado")
+    public ResponseEntity<?> cambiarEstadoTienda(@RequestBody Map<String, Boolean> request, Authentication authentication) {
+        try {
+            String correo = authentication.getName();
+            Usuario vendedor = usuarioRepository.findByCorreo(correo).orElseThrow(() -> new IllegalStateException("Vendedor no encontrado."));
+            Optional<Tienda> tiendaOpt = vendedorService.findTiendaByVendedor(vendedor);
+            
+            if (tiendaOpt.isPresent()) {
+                Tienda tienda = tiendaOpt.get();
+                Boolean estaAbierta = request.get("estaAbierta");
+                vendedorService.actualizarEstadoTienda(tienda.getId(), estaAbierta);
+                return ResponseEntity.ok().body("Estado de la tienda actualizado");
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Tienda no encontrada");
+            }
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

@@ -1,10 +1,23 @@
 package com.remington.unieats.marketplace.model.entity;
 
-import com.fasterxml.jackson.annotation.JsonManagedReference;
-import com.remington.unieats.marketplace.model.enums.EstadoTienda;
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.remington.unieats.marketplace.model.enums.EstadoTienda;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "tiendas")
@@ -31,6 +44,9 @@ public class Tienda {
 
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private LocalDateTime fechaCreacion = LocalDateTime.now();
+
+    @Column(name = "esta_abierta", nullable = false)
+    private Boolean estaAbierta = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vendedor_id", nullable = false)
@@ -104,6 +120,14 @@ public class Tienda {
 
     public void setVendedor(Usuario vendedor) {
         this.vendedor = vendedor;
+    }
+
+    public Boolean getEstaAbierta() {
+        return estaAbierta;
+    }
+
+    public void setEstaAbierta(Boolean estaAbierta) {
+        this.estaAbierta = estaAbierta;
     }
 
     public List<CategoriaOpcion> getCategoriasDeOpciones() {

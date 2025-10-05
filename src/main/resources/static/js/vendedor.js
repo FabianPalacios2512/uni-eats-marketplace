@@ -64,13 +64,14 @@ function startVendorApp() {
             currentView: 'pedidos', // Track current view
             productViewMode: 'compact', // 'compact' or 'cards'
             pedidosPolling: null, // Polling interval for pedidos
+            estadisticasPolling: null, // Polling interval for estadisticas
             lastPedidosCount: 0, // Track number of pedidos for notifications
             isPollingActive: false, // Track polling state
             lastPedidosHash: null, // Hash of last pedidos data to detect real changes
             currentPedidos: [], // Store current pedidos for comparison
-            pollingInterval: 30000, // Start with 30 seconds (reasonable)
-            maxPollingInterval: 120000, // Max 2 minutes (very slow)
-            minPollingInterval: 15000, // Min 15 seconds (fast but not aggressive)
+            pollingInterval: 5000, // Start with 5 seconds (fast for new orders)
+            maxPollingInterval: 30000, // Max 30 seconds (when inactive)
+            minPollingInterval: 3000, // Min 3 seconds (ultra fast for active periods)
             consecutiveNoChanges: 0, // Counter for no changes
             lastActivityTime: Date.now(), // Track last activity
             isUserActive: true, // Track if user is actively using the app
@@ -379,6 +380,10 @@ function startVendorApp() {
                     
                     // Limpiar sesión cuando se cierre la ventana/pestaña
                     window.addEventListener('beforeunload', () => {
+                        // Limpiar todos los intervalos y requests
+                        App.components.Dashboard.cleanup();
+                        App.components.Pedidos.stopPolling();
+                        
                         // Solo limpiar si no es un refresh (reload)
                         if (!performance.navigation || performance.navigation.type !== 1) {
                             sessionStorage.removeItem('vendedor-session-active');
@@ -422,26 +427,61 @@ function startVendorApp() {
                     const statusHtml = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full ${status.colors} inline-flex items-center gap-1.5"><i class="${status.icon}"></i>${status.label}</span>`;
                     const ventasHoy = (tienda.ventasHoy || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
                     const pedidosNuevos = tienda.pedidosNuevos || 0;
+                    const pedidosCompletados = tienda.pedidosCompletados || 0;
                     const estaAbierta = tienda.estaAbierta !== false;
 
                     return `
                         <div id="view-pedidos" class="main-view">
-                            <header class="bg-white p-4 sticky top-0 z-30 rounded-b-2xl shadow-lg space-y-4 mb-4">
-                                <div class="flex items-center gap-3">
-                                    <img src="${tienda.logoUrl || '/img/logo-placeholder.svg'}" alt="Logo" class="w-12 h-12 rounded-full object-cover border-2 border-indigo-100">
-                                    <div><h1 class="text-lg font-bold text-slate-800 leading-tight">${tienda.nombre}</h1>${statusHtml}</div>
+                            <!-- Header compacto con prioridad en pedidos -->
+                            <header class="bg-white p-3 sticky top-0 z-30 rounded-b-xl shadow-md mb-3">
+                                <!-- Fila 1: Info básica + Control de tienda en una sola línea -->
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <img src="${tienda.logoUrl || '/img/logo-placeholder.svg'}" alt="Logo" class="w-8 h-8 rounded-full object-cover border border-slate-200">
+                                        <div>
+                                            <h1 class="text-sm font-bold text-slate-800 leading-tight">${tienda.nombre}</h1>
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-2 h-2 rounded-full ${estaAbierta ? 'bg-green-500' : 'bg-red-500'} animate-pulse"></div>
+                                                <span class="text-xs font-medium ${estaAbierta ? 'text-green-600' : 'text-red-600'}">${estaAbierta ? 'ABIERTA' : 'CERRADA'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Botón de tienda compacto -->
+                                    <button 
+                                        id="btn-toggle-tienda" 
+                                        onclick="window.toggleTiendaStatus()"
+                                        class="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 shadow-md
+                                               ${estaAbierta ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}"
+                                        data-estado="${estaAbierta}">
+                                        <i class="fas ${estaAbierta ? 'fa-times' : 'fa-check'} mr-1"></i>
+                                        ${estaAbierta ? 'Cerrar' : 'Abrir'}
+                                    </button>
                                 </div>
-                                <div class="grid grid-cols-2 gap-4 text-center">
-                                    <div class="bg-slate-100 p-3 rounded-xl"><p class="text-xs font-semibold text-slate-500">VENTAS DE HOY</p><p class="text-2xl font-bold text-indigo-600">${ventasHoy}</p></div>
-                                    <div class="bg-slate-100 p-3 rounded-xl"><p class="text-xs font-semibold text-slate-500">PEDIDOS NUEVOS</p><p class="text-2xl font-bold text-indigo-600">${pedidosNuevos}</p></div>
-                                </div>
-                                <div class="border-t pt-3 flex justify-between items-center">
-                                    <p class="font-bold text-slate-700">Recibiendo Pedidos</p>
-                                    <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="store-status-toggle" ${estaAbierta ? 'checked' : ''} class="sr-only peer"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div></label>
+                                
+                                <!-- Fila 2: Estadísticas compactas -->
+                                <div class="grid grid-cols-3 gap-2 text-center">
+                                    <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                                        <p class="text-xs font-medium text-emerald-600">Ventas</p>
+                                        <p class="text-sm font-bold text-emerald-800">${ventasHoy}</p>
+                                    </div>
+                                    <div class="bg-amber-50 p-2 rounded-lg border border-amber-100">
+                                        <p class="text-xs font-medium text-amber-600">Nuevos</p>
+                                        <p class="text-sm font-bold text-amber-800">${pedidosNuevos}</p>
+                                    </div>
+                                    <div class="bg-blue-50 p-2 rounded-lg border border-blue-100">
+                                        <p class="text-xs font-medium text-blue-600">Hechos</p>
+                                        <p class="text-sm font-bold text-blue-800">${pedidosCompletados}</p>
+                                    </div>
                                 </div>
                             </header>
-                            <div id="pedidos-container" class="p-4 pt-0 space-y-3">
-                                <div class="bg-white p-6 rounded-xl shadow-md text-center"><i class="fas fa-spinner fa-spin text-2xl text-indigo-400 mb-3"></i><p class="mt-2 text-slate-500">Cargando pedidos...</p></div>
+                            
+                            <!-- Área principal para pedidos (más espacio) -->
+                            <div id="pedidos-container" class="px-3 space-y-3">
+                                <div class="bg-white p-6 rounded-xl shadow-md text-center">
+                                    <i class="fas fa-spinner fa-spin text-2xl text-indigo-400 mb-3"></i>
+                                    <p class="mt-2 text-slate-500">Cargando pedidos...</p>
+                                </div>
                             </div>
                         </div>`;
                 },
@@ -450,10 +490,127 @@ function startVendorApp() {
                     const container = document.getElementById('pedidos-container');
                     if (!container) return;
 
-                    container.removeEventListener('click', this.handlePedidoAction);
-                    container.addEventListener('click', this.handlePedidoAction);
+                    container.removeEventListener('click', this.handlePedidoAction.bind(this));
+                    container.addEventListener('click', this.handlePedidoAction.bind(this));
+
+                    // Cargar estadísticas del header
+                    try {
+                        const response = await fetch('/api/vendedor/dashboard');
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            // Actualizar el estado global de la tienda con datos frescos
+                            if (data.tienda) {
+                                App.state.tienda = data.tienda;
+                                App.state.tienda.ventasHoy = data.ventasHoy;
+                                App.state.tienda.pedidosNuevos = data.pedidosNuevos;
+                                App.state.tienda.pedidosCompletados = data.pedidosCompletados;
+                            }
+                            
+                            // Mostrar ventas del día
+                            const ventasElement = document.querySelector('.text-emerald-800');
+                            if (ventasElement) {
+                                ventasElement.textContent = data.ventasHoy || 0;
+                            }
+                            
+                            // Mostrar pedidos nuevos
+                            const nuevosElement = document.querySelector('.text-amber-800');
+                            if (nuevosElement) {
+                                nuevosElement.textContent = data.pedidosNuevos || 0;
+                            }
+                            
+                            // Mostrar pedidos completados
+                            const completadosElement = document.querySelector('.text-blue-800');
+                            if (completadosElement) {
+                                completadosElement.textContent = data.pedidosCompletados || 0;
+                            }
+                            
+                            console.log('🏪 Estadísticas del header actualizadas');
+                        }
+                    } catch (error) {
+                        console.error('Error cargando estadísticas:', error);
+                    }
 
                     await this.loadPedidos();
+                    
+                    // Configurar actualización automática de estadísticas cada 30 segundos
+                    this.startEstadisticasPolling();
+                },
+
+                startEstadisticasPolling() {
+                    // Don't start multiple polling intervals
+                    if (App.state.estadisticasPolling) return;
+                    
+                    App.state.estadisticasPolling = setInterval(async () => {
+                        await this.actualizarEstadisticas();
+                    }, 30000); // 30 segundos
+                    
+                    console.log('📊 Actualización automática de estadísticas configurada (cada 30 segundos)');
+                },
+
+                stopEstadisticasPolling() {
+                    if (App.state.estadisticasPolling) {
+                        clearInterval(App.state.estadisticasPolling);
+                        App.state.estadisticasPolling = null;
+                        console.log('📊 Polling de estadísticas detenido');
+                    }
+                },
+
+                // Función para limpiar todos los intervalos y requests pendientes
+                cleanup() {
+                    this.stopEstadisticasPolling();
+                    // Agregar cleanup adicional si es necesario
+                },
+
+                // Función para actualizar solo las estadísticas
+                async actualizarEstadisticas() {
+                    try {
+                        const response = await fetch('/api/vendedor/dashboard');
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            // Actualizar el estado global de la tienda con datos frescos
+                            if (data.tienda) {
+                                App.state.tienda = data.tienda;
+                                App.state.tienda.ventasHoy = data.ventasHoy;
+                                App.state.tienda.pedidosNuevos = data.pedidosNuevos;
+                                App.state.tienda.pedidosCompletados = data.pedidosCompletados;
+                            }
+                            
+                            // Actualizar ventas del día
+                            const ventasElement = document.querySelector('.text-emerald-800');
+                            if (ventasElement) {
+                                ventasElement.textContent = data.ventasHoy || 0;
+                            }
+                            
+                            // Actualizar pedidos nuevos
+                            const nuevosElement = document.querySelector('.text-amber-800');
+                            if (nuevosElement) {
+                                nuevosElement.textContent = data.pedidosNuevos || 0;
+                            }
+                            
+                            // Actualizar pedidos completados
+                            const completadosElement = document.querySelector('.text-blue-800');
+                            if (completadosElement) {
+                                completadosElement.textContent = data.pedidosCompletados || 0;
+                            }
+                            
+                            // Actualizar el botón del estado de la tienda si hay cambios
+                            const storeBtn = document.getElementById('store-status-btn');
+                            if (storeBtn && data.tienda) {
+                                this.updateStoreButton(storeBtn, data.tienda.estaAbierta);
+                            }
+                            
+                            console.log('📊 Estadísticas actualizadas:', {
+                                ventas: data.ventasHoy,
+                                nuevos: data.pedidosNuevos, 
+                                completados: data.pedidosCompletados,
+                                estaAbierta: data.tienda?.estaAbierta
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error actualizando estadísticas:', error);
+                    }
                 },
 
                 initNonBlocking(data) {
@@ -468,8 +625,8 @@ function startVendorApp() {
                         </div>
                     `;
 
-                    container.removeEventListener('click', this.handlePedidoAction);
-                    container.addEventListener('click', this.handlePedidoAction);
+                    container.removeEventListener('click', this.handlePedidoAction.bind(this));
+                    container.addEventListener('click', this.handlePedidoAction.bind(this));
                 },
 
                 async loadPedidos(forceReload = false) {
@@ -572,39 +729,49 @@ function startVendorApp() {
                 },
 
                 adjustPollingSpeed(hasChanges) {
-                    // Check user activity - if user hasn't interacted in 5 minutes, slow down significantly
+                    // Check user activity - but be more lenient for active periods
                     const timeSinceLastInteraction = Date.now() - App.state.lastUserInteraction;
+                    const twoMinutes = 2 * 60 * 1000;
                     const fiveMinutes = 5 * 60 * 1000;
-                    const tenMinutes = 10 * 60 * 1000;
                     
-                    if (timeSinceLastInteraction > tenMinutes) {
-                        // Very slow polling if user is away for more than 10 minutes
-                        App.state.pollingInterval = 300000; // 5 minutes
+                    if (timeSinceLastInteraction > fiveMinutes) {
+                        // Slow down only after 5 minutes of inactivity
+                        App.state.pollingInterval = App.state.maxPollingInterval; // 30 seconds
                         App.state.isUserActive = false;
-                        // Removed console.log to reduce noise
-                    } else if (timeSinceLastInteraction > fiveMinutes) {
-                        // Slower polling if user is away for more than 5 minutes
-                        App.state.pollingInterval = App.state.maxPollingInterval;
-                        App.state.isUserActive = false;
-                        // Removed console.log to reduce noise
-                    } else if (hasChanges) {
-                        // Speed up when there are changes and user is active
-                        App.state.pollingInterval = App.state.minPollingInterval;
+                        console.log('⏱️ Usuario inactivo > 5min - polling cada 30s');
+                    } else if (timeSinceLastInteraction > twoMinutes) {
+                        // Moderate speed after 2 minutes
+                        App.state.pollingInterval = 10000; // 10 seconds
                         App.state.isUserActive = true;
-                        // Removed console.log to reduce noise
+                        console.log('⏱️ Usuario semi-activo - polling cada 10s');
+                    } else if (hasChanges) {
+                        // ULTRA FAST when there are changes (new orders coming!)
+                        App.state.pollingInterval = App.state.minPollingInterval; // 3 seconds
+                        App.state.isUserActive = true;
+                        App.state.consecutiveNoChanges = 0; // Reset counter
+                        console.log('🚀 CAMBIOS DETECTADOS - polling ultra rápido cada 3s');
                     } else {
-                        // Normal polling when no changes but user is active
-                        if (App.state.consecutiveNoChanges >= 5) {
-                            // After 5 checks without changes, start slowing down gradually
-                            const slowDownFactor = Math.min(App.state.consecutiveNoChanges - 4, 3); // Max 3x slower
+                        // Graduated slow-down when no changes, but still keep it fast initially
+                        if (App.state.consecutiveNoChanges === 0) {
+                            // First check without changes - stay fast
+                            App.state.pollingInterval = 5000; // 5 seconds
+                            console.log('⚡ Primera verificación sin cambios - polling cada 5s');
+                        } else if (App.state.consecutiveNoChanges <= 2) {
+                            // First 2 checks without changes - moderate speed
+                            App.state.pollingInterval = 7000; // 7 seconds
+                            console.log('🔍 Buscando nuevos pedidos - polling cada 7s');
+                        } else if (App.state.consecutiveNoChanges <= 5) {
+                            // 3-5 checks without changes - normal speed
+                            App.state.pollingInterval = 10000; // 10 seconds
+                            console.log('⏱️ Polling normal - cada 10s');
+                        } else {
+                            // More than 5 checks without changes - gradual slowdown
+                            const slowDownFactor = Math.min(App.state.consecutiveNoChanges - 5, 2); // Max 2x slower
                             App.state.pollingInterval = Math.min(
-                                App.state.minPollingInterval * (1 + slowDownFactor * 0.8),
+                                10000 + (slowDownFactor * 5000), // 10s + up to 10s more
                                 App.state.maxPollingInterval
                             );
-                            // Removed console.log to reduce noise
-                        } else {
-                            // Keep normal interval for first few checks without changes
-                            App.state.pollingInterval = 45000; // 45 seconds
+                            console.log(`🐌 Sin cambios por ${App.state.consecutiveNoChanges} veces - polling cada ${App.state.pollingInterval/1000}s`);
                         }
                         App.state.isUserActive = true;
                     }
@@ -635,10 +802,12 @@ function startVendorApp() {
                     
                     App.state.isPollingActive = true;
                     App.state.consecutiveNoChanges = 0; // Reset counter
-                    App.state.pollingInterval = 45000; // Start with moderate speed (45 seconds)
+                    App.state.pollingInterval = 5000; // Start FAST - 5 seconds for detecting new orders quickly
                     App.state.lastUserInteraction = Date.now(); // Reset user activity
                     
-                    // Start with moderate polling - not too aggressive
+                    console.log('🚀 Iniciando polling RÁPIDO cada 5 segundos para detectar nuevos pedidos');
+                    
+                    // Start with FAST polling to catch new orders quickly
                     App.state.pedidosPolling = setInterval(async () => {
                         if (App.state.currentView === 'pedidos') {
                             await this.loadPedidos();
@@ -680,7 +849,7 @@ function startVendorApp() {
                         container.innerHTML = `
                             <div class="mb-4 flex justify-between items-center">
                                 <h2 class="text-xl font-bold text-slate-800">
-                                    <i class="fas fa-clock text-orange-500 mr-2"></i>Pedidos Activos (0)
+                                    <i class="fas fa-clock text-orange-500 mr-2"></i>Pedidos (0)
                                 </h2>
                                 <div class="flex gap-2">
                                     <button id="refresh-pedidos" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-2 rounded-lg transition-colors text-sm" title="Actualizar pedidos">
@@ -695,7 +864,7 @@ function startVendorApp() {
                             </div>
                             <div class="bg-white p-6 rounded-xl shadow-md text-center">
                                 <i class="fas fa-receipt text-4xl text-indigo-400 mb-3"></i>
-                                <h3 class="text-xl font-bold">Pedidos Activos</h3>
+                                <h3 class="text-xl font-bold">Pedidos</h3>
                                 <p class="mt-2 text-slate-500">No tienes pedidos pendientes en este momento.</p>
                             </div>
                         `;
@@ -708,7 +877,7 @@ function startVendorApp() {
                     container.innerHTML = `
                         <div class="mb-4 flex justify-between items-center">
                             <h2 class="text-xl font-bold text-slate-800">
-                                <i class="fas fa-clock text-orange-500 mr-2"></i>Pedidos Activos (${pedidosActivos.length})
+                                <i class="fas fa-clock text-orange-500 mr-2"></i>Pedidos (${pedidosActivos.length})
                             </h2>
                             <div class="flex gap-2">
                                 <button id="refresh-pedidos" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-2 rounded-lg transition-colors text-sm" title="Actualizar pedidos">
@@ -1031,6 +1200,31 @@ function startVendorApp() {
                     });
                 },
 
+                // Función para activar temporalmente polling super rápido
+                activarPollingRapidoTemporal(duracionSegundos = 30) {
+                    console.log(`⚡ ACTIVANDO POLLING SÚPER RÁPIDO por ${duracionSegundos} segundos`);
+                    
+                    // Guardar intervalo actual
+                    const intervalOriginal = App.state.pollingInterval;
+                    
+                    // Activar polling ultra rápido (cada 2 segundos)
+                    App.state.pollingInterval = 2000;
+                    App.state.consecutiveNoChanges = 0;
+                    
+                    if (App.state.isPollingActive) {
+                        this.restartPolling();
+                    }
+                    
+                    // Restaurar velocidad normal después del tiempo especificado
+                    setTimeout(() => {
+                        console.log('🔄 Restaurando velocidad normal de polling');
+                        App.state.pollingInterval = 5000; // Volver a velocidad base rápida
+                        if (App.state.isPollingActive) {
+                            this.restartPolling();
+                        }
+                    }, duracionSegundos * 1000);
+                },
+
                 async handlePedidoAction(e) {
                     const button = e.target.closest('button[data-action]');
                     if (!button) return;
@@ -1038,8 +1232,10 @@ function startVendorApp() {
                     // Mark user activity - speed up polling
                     App.state.lastActivityTime = Date.now();
                     App.state.consecutiveNoChanges = 0;
-                    App.components.Pedidos.adjustPollingSpeed(true);
-
+                    
+                    // Activar polling súper rápido temporalmente después de una acción
+                    this.activarPollingRapidoTemporal(60); // 60 segundos de polling rápido
+                    
                     const { action, id } = button.dataset;
                     let endpoint = '';
 
@@ -1056,7 +1252,107 @@ function startVendorApp() {
                         App.ui.showToast(`Pedido #${id} actualizado.`);
                         // Reload pedidos immediately to show changes
                         await App.components.Pedidos.loadPedidos();
+                        // Actualizar estadísticas después de cambiar un pedido
+                        await App.components.Dashboard.actualizarEstadisticas();
                     } catch (error) { /* ya manejado en App.api */ }
+                },
+
+                async handleStoreStatusToggle(e) {
+                    console.log('🏪 Click en botón de estado de tienda detectado', e.target);
+                    
+                    const button = e.target.closest('#store-status-btn');
+                    if (!button) {
+                        console.error('❌ No se encontró el botón store-status-btn');
+                        return;
+                    }
+                    
+                    console.log('🏪 Botón encontrado:', button);
+                    
+                    const currentState = button.dataset.estaAbierta === 'true';
+                    const newState = !currentState;
+                    
+                    console.log('🏪 Estado actual:', currentState, '-> Nuevo estado:', newState);
+                    
+                    // Mostrar estado de carga
+                    const originalContent = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cambiando...';
+                    button.disabled = true;
+                    
+                    try {
+                        console.log('🏪 Enviando petición al servidor...');
+                        
+                        const response = await fetch('/api/vendedor/tienda/estado', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ estaAbierta: newState })
+                        });
+                        
+                        console.log('🏪 Respuesta del servidor:', response.status, response.statusText);
+                        
+                        if (response.ok) {
+                            const statusText = newState ? 'abierta' : 'cerrada';
+                            App.ui.showToast(`Tienda ${statusText} para recibir pedidos`, 'success');
+                            
+                            // Actualizar el botón
+                            console.log('🏪 Actualizando botón a estado:', newState);
+                            this.updateStoreButton(button, newState);
+                            
+                            // Actualizar el estado global
+                            if (App.state.tienda) {
+                                App.state.tienda.estaAbierta = newState;
+                            }
+                            
+                            console.log('🏪 Estado de tienda actualizado exitosamente:', { estaAbierta: newState });
+                        } else {
+                            const errorText = await response.text();
+                            console.error('❌ Error del servidor:', errorText);
+                            throw new Error(`Error del servidor: ${response.status} - ${errorText}`);
+                        }
+                        
+                    } catch (error) {
+                        console.error('❌ Error al cambiar estado de tienda:', error);
+                        App.ui.showToast('Error al cambiar el estado de la tienda', 'error');
+                        // Restaurar contenido original
+                        button.innerHTML = originalContent;
+                    } finally {
+                        button.disabled = false;
+                    }
+                },
+
+                // Función para actualizar el botón de estado de tienda
+                updateStoreButton(button, isOpen) {
+                    console.log('🏪 updateStoreButton llamada con:', { button, isOpen });
+                    
+                    if (!button) {
+                        console.error('❌ updateStoreButton: botón es null o undefined');
+                        return;
+                    }
+                    
+                    // Actualizar dataset
+                    button.dataset.estaAbierta = isOpen;
+                    console.log('🏪 Dataset actualizado:', button.dataset.estaAbierta);
+                    
+                    // Actualizar contenido
+                    const newContent = `
+                        <i class="fas ${isOpen ? 'fa-store-alt' : 'fa-times-circle'}"></i>
+                        ${isOpen ? 'Cerrar Tienda' : 'Abrir Tienda'}
+                    `;
+                    button.innerHTML = newContent;
+                    console.log('🏪 Contenido actualizado:', newContent.trim());
+                    
+                    // Actualizar clases
+                    const newClassName = `${isOpen ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-red-500 hover:bg-red-600 text-white'} 
+                                       px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2`;
+                    button.className = newClassName;
+                    console.log('🏪 Clases actualizadas:', button.className);
+                    
+                    console.log('🏪 Botón actualizado completamente. Estado final:', {
+                        estaAbierta: button.dataset.estaAbierta,
+                        innerHTML: button.innerHTML,
+                        className: button.className
+                    });
                 }
             },
 // ...
@@ -1228,6 +1524,15 @@ function startVendorApp() {
                     if (productForm) {
                         productForm.addEventListener('submit', async (e) => {
                             e.preventDefault();
+                            
+                            // NUEVA VALIDACIÓN: Verificar que se haya seleccionado una clasificación
+                            const clasificacionSelect = productForm.querySelector('select[name="clasificacion"]');
+                            if (!clasificacionSelect || !clasificacionSelect.value) {
+                                App.ui.showToast('Por favor selecciona una clasificación para el producto', 'error');
+                                clasificacionSelect?.focus();
+                                return;
+                            }
+                            
                             const formData = new FormData(productForm);
                             
                             const categoriasSeleccionadas = Array.from(document.querySelectorAll('input[name="categoriasAsignadas"]:checked')).map(cb => cb.value);
@@ -1248,6 +1553,17 @@ function startVendorApp() {
                                 setTimeout(() => window.location.reload(), 1500);
 
                             } catch (error) { /* Error manejado */ }
+                        });
+                    }
+                    
+                    // Agregar listener para ocultar mensaje de error cuando se seleccione clasificación
+                    const clasificacionSelect = document.getElementById('product-clasificacion');
+                    if (clasificacionSelect) {
+                        clasificacionSelect.addEventListener('change', function() {
+                            const errorDiv = document.getElementById('clasificacion-error');
+                            if (this.value && errorDiv) {
+                                errorDiv.classList.add('hidden');
+                            }
                         });
                     }
                 },
@@ -1303,6 +1619,19 @@ function startVendorApp() {
                                             <input type="number" id="edit-precio" name="precio" value="${producto.precio}" step="0.01" min="0" class="input-field w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-orange-500 focus:outline-none transition-colors" placeholder=" " required>
                                             <label for="edit-precio" class="floating-label">Precio (COP)</label>
                                         </div>
+                                        <div class="relative">
+                                            <select name="clasificacion" id="edit-clasificacion" class="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:border-orange-500 focus:outline-none transition-colors bg-white" required>
+                                                <option value="">Selecciona una clasificación</option>
+                                                <option value="DESAYUNO" ${producto.clasificacion === 'DESAYUNO' ? 'selected' : ''}>🥞 Desayuno</option>
+                                                <option value="ALMUERZO" ${producto.clasificacion === 'ALMUERZO' ? 'selected' : ''}>🍽️ Almuerzo</option>
+                                                <option value="COMIDA_RAPIDA" ${producto.clasificacion === 'COMIDA_RAPIDA' ? 'selected' : ''}>🍟 Comida Rápida</option>
+                                                <option value="BEBIDAS" ${producto.clasificacion === 'BEBIDAS' ? 'selected' : ''}>🥤 Bebidas</option>
+                                                <option value="POSTRES" ${producto.clasificacion === 'POSTRES' ? 'selected' : ''}>🍰 Postres</option>
+                                                <option value="SNACKS" ${producto.clasificacion === 'SNACKS' ? 'selected' : ''}>🍿 Snacks</option>
+                                                <option value="SALUDABLE" ${producto.clasificacion === 'SALUDABLE' ? 'selected' : ''}>🥗 Saludable</option>
+                                            </select>
+                                            <div class="text-red-500 text-sm mt-1 hidden" id="edit-clasificacion-error">Por favor selecciona una clasificación</div>
+                                        </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-2">Imagen actual</label>
                                             <img src="${producto.imagenUrl || '/img/placeholder.svg'}" alt="Imagen actual" class="w-full h-32 object-cover rounded-2xl border border-gray-200 mb-2">
@@ -1329,6 +1658,19 @@ function startVendorApp() {
                     
                     document.getElementById('edit-product-form').addEventListener('submit', async (e) => {
                         e.preventDefault();
+                        
+                        // NUEVA VALIDACIÓN: Verificar que se haya seleccionado una clasificación
+                        const clasificacionSelect = document.getElementById('edit-clasificacion');
+                        if (!clasificacionSelect || !clasificacionSelect.value) {
+                            App.ui.showToast('Por favor selecciona una clasificación para el producto', 'error');
+                            clasificacionSelect?.focus();
+                            const errorDiv = document.getElementById('edit-clasificacion-error');
+                            if (errorDiv) {
+                                errorDiv.classList.remove('hidden');
+                            }
+                            return;
+                        }
+                        
                         const formData = new FormData(e.target);
                         formData.append('disponible', document.getElementById('edit-disponible').checked);
                         
@@ -1351,6 +1693,17 @@ function startVendorApp() {
                             submitButton.disabled = false;
                         }
                     });
+                    
+                    // Agregar listener para ocultar mensaje de error cuando se seleccione clasificación en edición
+                    const editClasificacionSelect = document.getElementById('edit-clasificacion');
+                    if (editClasificacionSelect) {
+                        editClasificacionSelect.addEventListener('change', function() {
+                            const errorDiv = document.getElementById('edit-clasificacion-error');
+                            if (this.value && errorDiv) {
+                                errorDiv.classList.add('hidden');
+                            }
+                        });
+                    }
                 },
                 
                 async deleteProduct(productId) {
@@ -1714,8 +2067,11 @@ function startVendorApp() {
         App.state.lastUserInteraction = Date.now();
         if (!App.state.isUserActive) {
             App.state.isUserActive = true;
-            // If polling is active and user became active again, restart with faster polling
+            console.log('👤 Usuario activo detectado - acelerando polling');
+            // If polling is active and user became active again, restart with FAST polling
             if (App.state.isPollingActive && App.state.currentView === 'pedidos') {
+                // Reset to fast polling when user becomes active
+                App.state.consecutiveNoChanges = 0;
                 App.components.Pedidos.adjustPollingSpeed(false);
             }
         }
@@ -1729,6 +2085,7 @@ function startVendorApp() {
     // Cleanup when page is unloaded
     window.addEventListener('beforeunload', () => {
         App.components.Pedidos.stopPolling();
+        App.components.Dashboard.cleanup();
     });
 
     // Stop polling when page becomes hidden (browser tab switch, minimize, etc.)
@@ -1743,5 +2100,71 @@ function startVendorApp() {
             App.components.Pedidos.startPolling();
         }
     });
+    
+    // FUNCIÓN GLOBAL PARA EL BOTÓN DE TIENDA (Versión compacta)
+    window.toggleTiendaStatus = async function() {
+        console.log('🏪 FUNCIÓN GLOBAL EJECUTADA - toggleTiendaStatus()');
+        
+        const button = document.getElementById('btn-toggle-tienda');
+        if (!button) {
+            console.error('❌ No se encontró el botón btn-toggle-tienda');
+            return;
+        }
+        
+        const currentState = button.dataset.estado === 'true';
+        const newState = !currentState;
+        
+        console.log('🏪 Cambio de estado:', currentState, '->', newState);
+        
+        // Loading compacto
+        const originalContent = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        button.disabled = true;
+        
+        try {
+            const response = await fetch('/api/vendedor/tienda/estado', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estaAbierta: newState })
+            });
+            
+            if (response.ok) {
+                console.log('✅ Estado cambiado exitosamente');
+                
+                // Actualizar botón compacto
+                button.dataset.estado = newState.toString();
+                button.className = `px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 shadow-md ${newState ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`;
+                button.innerHTML = `<i class="fas ${newState ? 'fa-times' : 'fa-check'} mr-1"></i>${newState ? 'Cerrar' : 'Abrir'}`;
+                
+                // Actualizar indicador pequeño
+                const indicator = document.querySelector('.w-2.h-2.rounded-full');
+                if (indicator) {
+                    indicator.className = `w-2 h-2 rounded-full ${newState ? 'bg-green-500' : 'bg-red-500'} animate-pulse`;
+                }
+                
+                // Actualizar texto de estado
+                const estadoSpan = indicator?.nextElementSibling;
+                if (estadoSpan) {
+                    estadoSpan.className = `text-xs font-medium ${newState ? 'text-green-600' : 'text-red-600'}`;
+                    estadoSpan.textContent = newState ? 'ABIERTA' : 'CERRADA';
+                }
+                
+                // Toast compacto
+                App.ui.showToast(
+                    newState ? 'Tienda abierta' : 'Tienda cerrada', 
+                    'success'
+                );
+                
+            } else {
+                throw new Error('Error del servidor');
+            }
+        } catch (error) {
+            console.error('❌ Error:', error);
+            button.innerHTML = originalContent;
+            App.ui.showToast('Error al cambiar estado', 'error');
+        } finally {
+            button.disabled = false;
+        }
+    };
     
 } // End of startVendorApp function

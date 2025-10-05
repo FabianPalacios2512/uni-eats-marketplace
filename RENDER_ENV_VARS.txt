@@ -1,0 +1,30 @@
+# ===============================================================
+# VARIABLES DE ENTORNO PARA RENDER.COM
+# ===============================================================
+
+# CONFIGURACIÓN SUPABASE (USAR ESTAS VARIABLES EN RENDER)
+DATABASE_URL=jdbc:postgresql://db.lfvweearttrisbbhemld.supabase.co:5432/postgres?sslmode=require&prepareThreshold=0&preparedStatementCacheQueries=0&preparedStatementCacheSizeMiB=0
+DATABASE_DRIVER=org.postgresql.Driver
+DATABASE_USERNAME=postgres
+DATABASE_PASSWORD=F1001504182.ae
+DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+
+# SPRING CONFIGURATION
+SPRING_PROFILES_ACTIVE=prod
+
+# UPLOAD CONFIGURATION
+UPLOAD_DIR=/tmp/uploads
+
+# OPCIONAL: CONFIGURACIÓN DE EMAIL
+# SPRING_MAIL_USERNAME=tu_email@gmail.com
+# SPRING_MAIL_PASSWORD=tu_app_password_gmail
+
+# ===============================================================
+# CONFIGURACIÓN DE FALLBACK SI SUPABASE NO FUNCIONA
+# ===============================================================
+# Si Supabase sigue fallando, usar estas variables para H2:
+# DATABASE_URL=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+# DATABASE_DRIVER=org.h2.Driver
+# DATABASE_USERNAME=sa
+# DATABASE_PASSWORD=
+# DATABASE_PLATFORM=org.hibernate.dialect.H2Dialect

@@ -16,16 +16,32 @@
    - **Branch:** `main`
    - **Dockerfile Path:** `./Dockerfile` (automático)
 
-### 3️⃣ VARIABLES DE ENTORNO
-Agrega estas variables en Render:
+### 3️⃣ CONFIGURAR VARIABLES DE ENTORNO
+
+⚠️ **CRÍTICO:** Agrega estas variables EXACTAMENTE como están en Render:
 
 ```
-DATABASE_URL=jdbc:postgresql://db.lfvweearttrisbbhemld.supabase.co:5432/postgres?sslmode=require
+DATABASE_URL=jdbc:postgresql://db.lfvweearttrisbbhemld.supabase.co:5432/postgres?sslmode=require&prepareThreshold=0&preparedStatementCacheQueries=0&preparedStatementCacheSizeMiB=0
+DATABASE_DRIVER=org.postgresql.Driver
 DATABASE_USERNAME=postgres
 DATABASE_PASSWORD=F1001504182.ae
-SPRING_MAIL_USERNAME=tu_email@gmail.com
-SPRING_MAIL_PASSWORD=tu_app_password_gmail
+DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
 SPRING_PROFILES_ACTIVE=prod
+UPLOAD_DIR=/tmp/uploads
+```
+
+### 🔄 **CONFIGURACIÓN DE FALLBACK** (Si Supabase falla)
+
+Si persisten problemas de conectividad, usar estas variables para H2 temporal:
+
+```
+DATABASE_URL=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+DATABASE_DRIVER=org.h2.Driver
+DATABASE_USERNAME=sa
+DATABASE_PASSWORD=
+DATABASE_PLATFORM=org.hibernate.dialect.H2Dialect
+SPRING_PROFILES_ACTIVE=prod
+UPLOAD_DIR=/tmp/uploads
 ```
 
 > 📧 **IMPORTANTE GMAIL:**

@@ -8,6 +8,7 @@ import com.remington.unieats.marketplace.model.repository.UsuarioRepository;
 import com.remington.unieats.marketplace.model.repository.TiendaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import java.util.Set;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 @Component
+@Profile("!test") // No ejecutar en tests
 public class DataLoader implements CommandLineRunner {
 
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DataLoader.class);
@@ -37,6 +39,12 @@ public class DataLoader implements CommandLineRunner {
         logger.info("🚀 DataLoader iniciado...");
         
         try {
+            // Solo ejecutar si la base de datos está vacía
+            if (rolRepository.count() > 0) {
+                logger.info("ℹ️ Base de datos ya inicializada, saltando DataLoader");
+                return;
+            }
+            
             crearRolSiNoExiste("ESTUDIANTE");
             crearRolSiNoExiste("VENDEDOR");
             crearRolSiNoExiste("ADMIN_PLATAFORMA");
@@ -74,9 +82,13 @@ public class DataLoader implements CommandLineRunner {
             System.out.println("🎓 Usuario estudiante creado");
         }
 
-        // Siempre ejecutar la asignación de logos para debugging
-        logger.info("🎨 Ejecutando asignación de logos...");
-        asignarLogosATiendas();
+        // Solo asignar logos si hay tiendas en la base de datos
+        if (tiendaRepository.count() > 0) {
+            logger.info("🎨 Ejecutando asignación de logos...");
+            asignarLogosATiendas();
+        } else {
+            logger.info("📊 No hay tiendas para asignar logos");
+        }
         
         logger.info("✅ DataLoader completado exitosamente");
         
